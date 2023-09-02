@@ -387,6 +387,18 @@ block((col, Col), (Row, Col)) :- Row = 1..9, Col = 1..9.
     assert len(program) == 9 + 9
 
 
+def test_expand_global_variables_in_several_rules():
+    program = SymbolicProgram.parse("""
+block((row, Row), (Row, Col)) :- Row = 1..9, Col = 1..9.
+block((col, Col), (Row, Col)) :- Row = 1..9, Col = 1..9.
+    """.strip())
+    program = program.expand_global_safe_variables_in_rules({
+        program[0]: ["Row"],
+        program[1]: ["Col"],
+    })
+    assert len(program) == 9 + 9
+
+
 def test_symbolic_term_int():
     term = SymbolicTerm.parse("123")
     assert term.is_int()
