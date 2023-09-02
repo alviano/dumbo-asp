@@ -456,6 +456,10 @@ class SymbolicRule:
         return self.__value.head.ast_type == clingo.ast.ASTType.Aggregate
 
     @property
+    def is_constraint(self) -> bool:
+        return self.head_atom == SymbolicAtom.of_false()
+
+    @property
     def head_atom(self) -> SymbolicAtom:
         if ("atom" in self.__value.head.keys()) and ("value" in self.__value.head.atom.keys()):
             validate("#false", self.__value.head.atom.value, equals=0)
@@ -671,9 +675,9 @@ class SymbolicRule:
                     break
                 index += 1
             return SymbolicRule.parse(s[:index + 1] + f"{atom}" + s[index + 1:])
-        return SymbolicRule.parse(
-            f'{atom} |\n{self}'
-        )
+        if self.is_constraint:
+            return SymbolicRule.parse(f'{atom}\n{self}')
+        return SymbolicRule.parse(f'{atom} |\n{self}')
 
 
 @typeguard.typechecked

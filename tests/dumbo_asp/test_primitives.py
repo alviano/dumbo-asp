@@ -728,6 +728,12 @@ def test_rule_to_zero_simplification_version_choice_with_no_elements():
         '1 <= %* comment {} *% {__false__("MSA8PSAlKiBjb21tZW50IHt9IColIHt9IDotIGIoWCxZKS4=", (X,Y))} :- b(X,Y).')
 
 
+def test_rule_to_zero_simplification_version_constraint():
+    rule = SymbolicRule.parse(":- b(X,Y).").to_zero_simplification_version()
+    assert rule == SymbolicRule.parse(
+        '__false__("Oi0gYihYLFkpLg==", (X,Y))\n:- b(X,Y).')
+
+
 def test_program_to_zero_simplification_version():
     program = SymbolicProgram.parse("""
 a.
