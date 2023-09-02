@@ -276,6 +276,41 @@ def test_program_herbrand_base():
     assert SymbolicProgram.parse("a(X) :- X = 1..3.").herbrand_base == Model.of_program("a(1..3).")
 
 
+def foo():
+    """
+    __module__(transitive_closure).
+        output(X,Y) :- input(X,Y).
+        output(X,Y) :- input(X,Z), output(Z,Y).
+    __end_module__.
+
+    __module__(undirected_transitive_closure).
+        __undirected(X,Y) :- input(X,Y).
+        __undirected(X,Y) :- input(Y,X).
+        __instantiate_module__(transitive_closure, (input, __undirected)).
+    __end_module__.
+
+    __show__().
+
+    #const x = 4.
+    __const__(x, 4).
+    __global_variable__(PRIME, (2, 3, 5, 9, 11)).
+
+    foo :- not bar(PRIME).
+
+    __doc__("bla bla") |
+    a :- b.
+
+
+    __undirected_{uuid.uuid4()}
+
+    __instantiate_module__(transitive_closure, (input, parent), (output, ancestor)).
+
+
+
+
+    """
+
+
 def test_symbolic_rule_is_fact():
     assert SymbolicRule.parse("a.").is_fact
     assert SymbolicRule.parse("a(1).").is_fact
@@ -669,3 +704,36 @@ __apply_template__("@dumbo/spanning tree of undirected graph").
     program = Template.expand_program(program)
     assert Model.of_program(program).filter(when=lambda atom: atom.predicate_name == "tree") == \
            Model.of_atoms("tree(1,2) tree(2,3)".split())
+
+
+def test_rule_to_zero_simplification_version():
+    rule = SymbolicRule.parse("a(X) :- b(X,Y).").to_zero_simplification_version()
+    assert rule == SymbolicRule.parse('__false__("YShYKSA6LSBiKFgsWSku", (X,Y)) |\na(X) :- b(X,Y).')
+
+
+def test_program_to_zero_simplification_version():
+    program = SymbolicProgram.parse("""
+a.
+b :- not a.
+c :- d.
+d :- c.
+p(X) :- e(X,Y).
+e(X,Y) :- X = 11..13, Y = 10 - X/2.
+    """.strip()).to_zero_simplification_version(extra_atoms=(GroundAtom.parse(atom) for atom in "a b c d".split()))
+    assert str(program) == """
+__false__("YS4=", ()) |
+a.
+__false__("YiA6LSBub3QgYS4=", ()) |
+b :- not a.
+__false__("YyA6LSBkLg==", ()) |
+c :- d.
+__false__("ZCA6LSBjLg==", ()) |
+d :- c.
+__false__("cChYKSA6LSBlKFgsWSku", (X,Y)) |
+p(X) :- e(X,Y).
+__false__("ZShYLFkpIDotIFggPSAxMS4uMTMsIFkgPSAxMCAtIFgvMi4=", (X,Y)) |
+e(X,Y) :- X = 11..13, Y = 10 - X/2.
+a | b | c | d :- __false__.
+{__false__}.
+:- #count{0 : __false__; RuleID, Substitution : __false__(RuleID, Substitution)} > 0.
+    """.strip()

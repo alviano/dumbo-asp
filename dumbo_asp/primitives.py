@@ -1,3 +1,4 @@
+import base64
 import copy
 import dataclasses
 import functools
@@ -635,6 +636,14 @@ class SymbolicRule:
         Transformer().visit(self.__value)
         return Transformer.matched
 
+    def to_zero_simplification_version(self, *,
+                                       false_predicate: Predicate = Predicate.parse("__false__")) -> "SymbolicRule":
+        rule_id = base64.b64encode(str(self).encode()).decode()
+        rule_vars = ','.join(self.global_safe_variables)
+        return SymbolicRule.parse(
+            f'{false_predicate.name}("{rule_id}", ({rule_vars}{"," if len(rule_vars) == 1 else ""})) |\n{self}'
+        )
+
 
 @typeguard.typechecked
 @dataclasses.dataclass(frozen=True)
@@ -780,6 +789,17 @@ class SymbolicProgram:
             program = SymbolicProgram.of(*program, *aux_program)
         model = Model.of_program(program).filter(lambda atom: atom.predicate.name == predicate)
         return tuple(SymbolicAtom.of_ground_atom(atom) for atom in model)
+
+    def to_zero_simplification_version(self, *, false_predicate: Predicate = Predicate.parse("__false__"),
+                                       extra_atoms: Iterable[GroundAtom] = ()) -> "SymbolicProgram":
+        return SymbolicProgram.of(
+            [rule.to_zero_simplification_version(false_predicate=false_predicate) for rule in self],
+            SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate.name}.")
+            if extra_atoms else [],
+            SymbolicRule.parse(f"{{{false_predicate.name}}}."),
+            SymbolicRule.parse(f":- #count{{0 : {false_predicate.name}; "
+                               f"RuleID, Substitution : {false_predicate.name}(RuleID, Substitution)}} > 0."),
+        )
 
 
 @typeguard.typechecked
