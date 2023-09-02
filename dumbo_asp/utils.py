@@ -23,6 +23,13 @@ def extract_parsed_string(string: str, location: clingo.ast.Location) -> str:
 
 
 @typeguard.typechecked
+def insert_in_parsed_string(addendum: str, string: str, line: int, column: int) -> str:
+    lines = string.split('\n')
+    lines[line - 1] = lines[line - 1][:column - 1] + addendum + lines[line - 1][column - 1:]
+    return '\n'.join(lines)
+
+
+@typeguard.typechecked
 def one_line(string: str) -> str:
     return NEW_LINE_SYMBOL.join(string.split('\n'))
 

@@ -711,6 +711,23 @@ def test_rule_to_zero_simplification_version():
     assert rule == SymbolicRule.parse('__false__("YShYKSA6LSBiKFgsWSku", (X,Y)) |\na(X) :- b(X,Y).')
 
 
+def test_rule_is_choice_rule():
+    assert SymbolicRule.parse("{a}.").is_choice_rule
+    assert not SymbolicRule.parse("a.").is_choice_rule
+    assert SymbolicRule.parse("{a(X) : b(X,Y)} = 1 :- c(Y).").is_choice_rule
+
+
+def test_rule_to_zero_simplification_version_choice_with_elements():
+    rule = SymbolicRule.parse("1 <= %* comment *% {a(X)} :- b(X,Y).").to_zero_simplification_version()
+    assert rule == SymbolicRule.parse('1 <= %* comment *% {__false__("MSA8PSAlKiBjb21tZW50IColIHthKFgpfSA6LSBiKFgsWSku", (X,Y)); a(X)} :- b(X,Y).')
+
+
+def test_rule_to_zero_simplification_version_choice_with_no_elements():
+    rule = SymbolicRule.parse("1 <= %* comment {} *% {} :- b(X,Y).").to_zero_simplification_version()
+    assert rule == SymbolicRule.parse(
+        '1 <= %* comment {} *% {__false__("MSA8PSAlKiBjb21tZW50IHt9IColIHt9IDotIGIoWCxZKS4=", (X,Y))} :- b(X,Y).')
+
+
 def test_program_to_zero_simplification_version():
     program = SymbolicProgram.parse("""
 a.

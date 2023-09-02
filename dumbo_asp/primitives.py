@@ -3,6 +3,7 @@ import copy
 import dataclasses
 import functools
 import math
+import re
 from dataclasses import InitVar
 from functools import cached_property, cache
 from typing import Callable, Optional, Iterable, Union, Any, Final
@@ -451,6 +452,10 @@ class SymbolicRule:
             self.__value.head.sign == clingo.ast.Sign.NoSign
 
     @property
+    def is_choice_rule(self) -> bool:
+        return self.__value.head.ast_type == clingo.ast.ASTType.Aggregate
+
+    @property
     def head_atom(self) -> SymbolicAtom:
         if ("atom" in self.__value.head.keys()) and ("value" in self.__value.head.atom.keys()):
             validate("#false", self.__value.head.atom.value, equals=0)
@@ -637,11 +642,37 @@ class SymbolicRule:
         return Transformer.matched
 
     def to_zero_simplification_version(self, *,
-                                       false_predicate: Predicate = Predicate.parse("__false__")) -> "SymbolicRule":
+                                       false_predicate: str = "__false__") -> "SymbolicRule":
+        Predicate.parse(false_predicate)  # validation
         rule_id = base64.b64encode(str(self).encode()).decode()
         rule_vars = ','.join(self.global_safe_variables)
+
+        atom = f'{false_predicate}("{rule_id}", ({rule_vars}{"," if len(rule_vars) == 1 else ""}))'
+
+        if self.is_choice_rule:
+            if self.__value.head.elements:
+                _, line, column = self.__value.head.elements[0].location.begin
+                return SymbolicRule.parse(utils.insert_in_parsed_string(f"{atom}; ", str(self), line, column))
+            s = str(self)
+            index = 0
+            while True:
+                if s[index] == '%':
+                    index += 1
+                    if s[index] == '*':
+                        index += 1
+                        while s[index] != '*' or s[index + 1] != '%':
+                            index += 1
+                        index += 1
+                    else:
+                        index += 1
+                        while s[index] != '\n':
+                            index += 1
+                if s[index] == '{':
+                    break
+                index += 1
+            return SymbolicRule.parse(s[:index + 1] + f"{atom}" + s[index + 1:])
         return SymbolicRule.parse(
-            f'{false_predicate.name}("{rule_id}", ({rule_vars}{"," if len(rule_vars) == 1 else ""})) |\n{self}'
+            f'{atom} |\n{self}'
         )
 
 
@@ -790,15 +821,15 @@ class SymbolicProgram:
         model = Model.of_program(program).filter(lambda atom: atom.predicate.name == predicate)
         return tuple(SymbolicAtom.of_ground_atom(atom) for atom in model)
 
-    def to_zero_simplification_version(self, *, false_predicate: Predicate = Predicate.parse("__false__"),
+    def to_zero_simplification_version(self, *, false_predicate: str = "__false__",
                                        extra_atoms: Iterable[GroundAtom] = ()) -> "SymbolicProgram":
         return SymbolicProgram.of(
             [rule.to_zero_simplification_version(false_predicate=false_predicate) for rule in self],
-            SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate.name}.")
+            SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate}.")
             if extra_atoms else [],
-            SymbolicRule.parse(f"{{{false_predicate.name}}}."),
-            SymbolicRule.parse(f":- #count{{0 : {false_predicate.name}; "
-                               f"RuleID, Substitution : {false_predicate.name}(RuleID, Substitution)}} > 0."),
+            SymbolicRule.parse(f"{{{false_predicate}}}."),
+            SymbolicRule.parse(f":- #count{{0 : {false_predicate}; "
+                               f"RuleID, Substitution : {false_predicate}(RuleID, Substitution)}} > 0."),
         )
 
 
