@@ -3,7 +3,6 @@ import copy
 import dataclasses
 import functools
 import math
-import re
 from dataclasses import InitVar
 from functools import cached_property, cache
 from typing import Callable, Optional, Iterable, Union, Any, Final, Dict
@@ -147,6 +146,13 @@ class Predicate:
             key=Predicate.__key,
         )
 
+    def drop_arity(self) -> "Predicate":
+        return Predicate(
+            name=self.name,
+            arity=None,
+            key=Predicate.__key,
+        )
+
     def match(self, other: "Predicate") -> bool:
         if self.name != other.name:
             return False
@@ -166,6 +172,10 @@ class Predicate:
             return True
 
         return self.arity < other.arity
+
+    @staticmethod
+    def false() -> "Predicate":
+        return Predicate.of(clingo.Function("__false__")).drop_arity()
 
 
 @functools.total_ordering
@@ -645,13 +655,11 @@ class SymbolicRule:
         Transformer().visit(self.__value)
         return Transformer.matched
 
-    def to_zero_simplification_version(self, *,
-                                       false_predicate: str = "__false__") -> "SymbolicRule":
-        Predicate.parse(false_predicate)  # validation
+    def to_zero_simplification_version(self) -> "SymbolicRule":
         rule_id = base64.b64encode(str(self).encode()).decode()
         rule_vars = ','.join(self.global_safe_variables)
 
-        atom = f'{false_predicate}("{rule_id}", ({rule_vars}{"," if len(rule_vars) == 1 else ""}))'
+        atom = f'{Predicate.false().name}("{rule_id}", ({rule_vars}{"," if len(rule_vars) == 1 else ""}))'
 
         if self.is_choice_rule:
             if self.__value.head.elements:
@@ -737,7 +745,7 @@ class SymbolicProgram:
         control = clingo.Control()
         control.add(str(self))
         control.ground([("base", [])])
-        return Model.of_atoms(atom.symbol for atom in control.symbolic_atoms)
+        return Model.of_atoms(atom.symbol for atom in control.symbolic_atoms).drop(Predicate.false())
 
     @cached_property
     def predicates(self) -> tuple[Predicate, ...]:
@@ -834,10 +842,10 @@ class SymbolicProgram:
         model = Model.of_program(program).filter(lambda atom: atom.predicate.name == predicate)
         return tuple(SymbolicAtom.of_ground_atom(atom) for atom in model)
 
-    def to_zero_simplification_version(self, *, false_predicate: str = "__false__",
-                                       extra_atoms: Iterable[GroundAtom] = ()) -> "SymbolicProgram":
+    def to_zero_simplification_version(self, *, extra_atoms: Iterable[GroundAtom] = ()) -> "SymbolicProgram":
+        false_predicate = Predicate.false().name
         return SymbolicProgram.of(
-            [rule.to_zero_simplification_version(false_predicate=false_predicate) for rule in self],
+            [rule.to_zero_simplification_version() for rule in self],
             SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate}.")
             if extra_atoms else [],
             SymbolicRule.parse(f"{{{false_predicate}}}."),
