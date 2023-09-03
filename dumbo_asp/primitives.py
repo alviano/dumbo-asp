@@ -315,7 +315,8 @@ class SymbolicTerm:
 
     @cached_property
     def arguments(self) -> tuple["SymbolicTerm", ...]:
-        return tuple(SymbolicTerm.parse(str(argument)) for argument in self.__value.arguments)
+        return tuple(SymbolicTerm.parse(str(argument)) for argument in self.__value.arguments) \
+            if "arguments" in self.__value.keys() else ()
 
     def make_copy_of_value(self) -> clingo.ast.AST:
         return copy.deepcopy(self.__value)
@@ -813,7 +814,8 @@ class SymbolicProgram:
         rules = []
         for __rule in self.__rules:
             if __rule in rules_to_variables.keys():
-                rules.extend(__rule.expand_global_safe_variables(variables=rules_to_variables[__rule], herbrand_base=self.herbrand_base))
+                rules.extend(__rule.expand_global_safe_variables(variables=rules_to_variables[__rule],
+                                                                 herbrand_base=self.herbrand_base))
             else:
                 rules.append(__rule)
         return SymbolicProgram.of(rules)
