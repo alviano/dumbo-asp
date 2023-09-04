@@ -3,6 +3,8 @@ import copy
 import dataclasses
 import functools
 import math
+import re
+from collections import defaultdict
 from dataclasses import InitVar
 from functools import cached_property, cache
 from typing import Callable, Optional, Iterable, Union, Any, Final, Dict
@@ -150,6 +152,14 @@ class Predicate:
         return Predicate(
             name=self.name,
             arity=None,
+            key=Predicate.__key,
+        )
+
+    def with_arity(self, arity: int) -> "Predicate":
+        validate("arity", arity, min_value=0, max_value=Predicate.MAX_ARITY)
+        return Predicate(
+            name=self.name,
+            arity=arity,
             key=Predicate.__key,
         )
 
@@ -598,10 +608,27 @@ class SymbolicRule:
             number_of_arguments=len(the_variables),
             conjunctive_query=self.body_as_string(),
         )
+
+        prefix = uuid()
+        suffix = uuid()
+
+        class Transformer(clingo.ast.Transformer):
+            def visit_Variable(self, node):
+                if str(node) not in the_variables:
+                    return node
+                return node.update(name=prefix + node.name + suffix)
+
+        fmt = str(self.of(Transformer().visit(self.__value)))
+
+        pattern = f"{prefix}({'|'.join(var for var in the_variables)}){suffix}"
+        var_to_index = {var: index for index, var in enumerate(the_variables)}
+
+        def apply(substitution):
+            return re.sub(pattern, lambda m: substitution[var_to_index[m.group(1)]], fmt)
+
         return tuple(
-            self.apply_variable_substitution(
-                **{var: SymbolicTerm.parse(str(substitution[index])) for index, var in enumerate(the_variables)}
-            ) for substitution in substitutions
+            SymbolicRule.parse(apply([str(s) for s in substitution]), self.disabled)
+            for substitution in substitutions
         )
 
     def expand_global_and_local_variables(self, *, herbrand_base: "Model") -> tuple["SymbolicRule", ...]:
@@ -657,10 +684,13 @@ class SymbolicRule:
         return Transformer.matched
 
     def to_zero_simplification_version(self) -> "SymbolicRule":
-        rule_id = base64.b64encode(str(self).encode()).decode()
+        rule_vars_as_strings = ','.join(f'"{var}"' for var in self.global_safe_variables)
+        rule_id = f'("{base64.b64encode(str(self).encode()).decode()}", ' \
+                  f'({rule_vars_as_strings}{"," if len(rule_vars_as_strings) == 1 else ""}))'
         rule_vars = ','.join(self.global_safe_variables)
 
-        atom = f'{Predicate.false().name}("{rule_id}", ({rule_vars}{"," if len(rule_vars) == 1 else ""}))'
+        atom = f'{Predicate.false().name}({rule_id}, ' \
+               f'({rule_vars}{"," if len(rule_vars) == 1 else ""}))'
 
         if self.is_choice_rule:
             if self.__value.head.elements:
@@ -746,7 +776,26 @@ class SymbolicProgram:
         control = clingo.Control()
         control.add(str(self))
         control.ground([("base", [])])
-        return Model.of_atoms(atom.symbol for atom in control.symbolic_atoms).drop(Predicate.false())
+        return Model.of_atoms(atom.symbol for atom in control.symbolic_atoms)
+
+    @cached_property
+    def herbrand_base_without_false_predicate(self) -> "Model":
+        return self.herbrand_base.drop(Predicate.false())
+
+    @cached_property
+    def herbrand_base_false_predicate_only(self) -> "Model":
+        return self.herbrand_base.filter(when=lambda at: at.predicate == Predicate.false().with_arity(2))
+
+    @cached_property
+    def rules_grouped_by_false_predicate(self):
+        atoms = self.herbrand_base_false_predicate_only
+        res = defaultdict(list)
+        variables = {}
+        for atom in atoms:
+            key = base64.b64decode(atom.arguments[0].arguments[0].string.encode()).decode()
+            res[key].append(atom.arguments[1])
+            variables[key] = {arg.string: index for index, arg in enumerate(atom.arguments[0].arguments[1].arguments)}
+        return res, variables
 
     @cached_property
     def predicates(self) -> tuple[Predicate, ...]:
@@ -807,15 +856,23 @@ class SymbolicProgram:
             if rule != __rule:
                 rules.append(__rule)
             else:
-                rules.extend(__rule.expand_global_safe_variables(variables=variables, herbrand_base=self.herbrand_base))
+                rules.extend(__rule.expand_global_safe_variables(
+                    variables=variables,
+                    herbrand_base=self.herbrand_base_without_false_predicate
+                ))
         return SymbolicProgram.of(rules)
 
-    def expand_global_safe_variables_in_rules(self, rules_to_variables: Dict[SymbolicRule, Iterable[str]]) -> "SymbolicProgram":
+    def expand_global_safe_variables_in_rules(
+            self,
+            rules_to_variables: Dict[SymbolicRule, Iterable[str]],
+    ) -> "SymbolicProgram":
         rules = []
         for __rule in self.__rules:
             if __rule in rules_to_variables.keys():
-                rules.extend(__rule.expand_global_safe_variables(variables=rules_to_variables[__rule],
-                                                                 herbrand_base=self.herbrand_base))
+                rules.extend(__rule.expand_global_safe_variables(
+                    variables=rules_to_variables[__rule],
+                    herbrand_base=self.herbrand_base_without_false_predicate,
+                ))
             else:
                 rules.append(__rule)
         return SymbolicProgram.of(rules)
@@ -824,7 +881,9 @@ class SymbolicProgram:
         rules = []
         for rule in self.__rules:
             if not rule.disabled or expand_also_disabled_rules:
-                rules.extend(rule.expand_global_and_local_variables(herbrand_base=self.herbrand_base))
+                rules.extend(rule.expand_global_and_local_variables(
+                    herbrand_base=self.herbrand_base_without_false_predicate)
+                )
             else:
                 rules.append(rule)
         return SymbolicProgram.of(rules)
@@ -852,7 +911,8 @@ class SymbolicProgram:
             if extra_atoms else [],
             SymbolicRule.parse(f"{{{false_predicate}}}."),
             SymbolicRule.parse(f":- #count{{0 : {false_predicate}; "
-                               f"RuleID, Substitution : {false_predicate}(RuleID, Substitution)}} > 0."),
+                               f"RuleID, Substitution "
+                               f": {false_predicate}(RuleID, Substitution)}} > 0."),
         )
 
 

@@ -1,4 +1,5 @@
 from builtins import ValueError
+from datetime import datetime
 from unittest.mock import patch
 
 import clingo
@@ -720,7 +721,7 @@ __apply_template__("@dumbo/spanning tree of undirected graph").
 
 def test_rule_to_zero_simplification_version():
     rule = SymbolicRule.parse("a(X) :- b(X,Y).").to_zero_simplification_version()
-    assert rule == SymbolicRule.parse('__false__("YShYKSA6LSBiKFgsWSku", (X,Y)) |\na(X) :- b(X,Y).')
+    assert rule == SymbolicRule.parse('__false__(("YShYKSA6LSBiKFgsWSku", ("X","Y")), (X,Y)) |\na(X) :- b(X,Y).')
 
 
 def test_rule_is_choice_rule():
@@ -731,19 +732,21 @@ def test_rule_is_choice_rule():
 
 def test_rule_to_zero_simplification_version_choice_with_elements():
     rule = SymbolicRule.parse("1 <= %* comment *% {a(X)} :- b(X,Y).").to_zero_simplification_version()
-    assert rule == SymbolicRule.parse('1 <= %* comment *% {__false__("MSA8PSAlKiBjb21tZW50IColIHthKFgpfSA6LSBiKFgsWSku", (X,Y)); a(X)} :- b(X,Y).')
+    assert rule == SymbolicRule.parse(
+        '1 <= %* comment *% {__false__(("MSA8PSAlKiBjb21tZW50IColIHthKFgpfSA6LSBiKFgsWSku", ("X","Y")), (X,Y)); a(X)} '
+        ':- b(X,Y).')
 
 
 def test_rule_to_zero_simplification_version_choice_with_no_elements():
     rule = SymbolicRule.parse("1 <= %* comment {} *% {} :- b(X,Y).").to_zero_simplification_version()
     assert rule == SymbolicRule.parse(
-        '1 <= %* comment {} *% {__false__("MSA8PSAlKiBjb21tZW50IHt9IColIHt9IDotIGIoWCxZKS4=", (X,Y))} :- b(X,Y).')
+        '1 <= %* comment {} *% {__false__(("MSA8PSAlKiBjb21tZW50IHt9IColIHt9IDotIGIoWCxZKS4=", ("X","Y")), (X,Y))} :- b(X,Y).')
 
 
 def test_rule_to_zero_simplification_version_constraint():
     rule = SymbolicRule.parse(":- b(X,Y).").to_zero_simplification_version()
     assert rule == SymbolicRule.parse(
-        '__false__("Oi0gYihYLFkpLg==", (X,Y))\n:- b(X,Y).')
+        '__false__(("Oi0gYihYLFkpLg==", ("X","Y")), (X,Y))\n:- b(X,Y).')
 
 
 def test_program_to_zero_simplification_version():
@@ -756,19 +759,32 @@ p(X) :- e(X,Y).
 e(X,Y) :- X = 11..13, Y = 10 - X/2.
     """.strip()).to_zero_simplification_version(extra_atoms=(GroundAtom.parse(atom) for atom in "a b c d".split()))
     assert str(program) == """
-__false__("YS4=", ()) |
+__false__(("YS4=", ()), ()) |
 a.
-__false__("YiA6LSBub3QgYS4=", ()) |
+__false__(("YiA6LSBub3QgYS4=", ()), ()) |
 b :- not a.
-__false__("YyA6LSBkLg==", ()) |
+__false__(("YyA6LSBkLg==", ()), ()) |
 c :- d.
-__false__("ZCA6LSBjLg==", ()) |
+__false__(("ZCA6LSBjLg==", ()), ()) |
 d :- c.
-__false__("cChYKSA6LSBlKFgsWSku", (X,Y)) |
+__false__(("cChYKSA6LSBlKFgsWSku", ("X","Y")), (X,Y)) |
 p(X) :- e(X,Y).
-__false__("ZShYLFkpIDotIFggPSAxMS4uMTMsIFkgPSAxMCAtIFgvMi4=", (X,Y)) |
+__false__(("ZShYLFkpIDotIFggPSAxMS4uMTMsIFkgPSAxMCAtIFgvMi4=", ("X","Y")), (X,Y)) |
 e(X,Y) :- X = 11..13, Y = 10 - X/2.
 a | b | c | d :- __false__.
 {__false__}.
 :- #count{0 : __false__; RuleID, Substitution : __false__(RuleID, Substitution)} > 0.
     """.strip()
+
+
+def test_rules_grouped_by_false_predicate():
+    program = SymbolicProgram.parse("""
+a(X) :- b(X,Y), not c(Y).
+b(1,1).
+b(1,2).
+c(1).
+    """).to_zero_simplification_version()
+    substitutions, variables = program.rules_grouped_by_false_predicate
+    assert variables["a(X) :- b(X,Y), not c(Y)."] == {'X': 0, 'Y': 1}
+    assert [[str(x) for x in sub.arguments] for sub in substitutions["a(X) :- b(X,Y), not c(Y)."]] == \
+           [['1', '1'], ['1', '2']]
