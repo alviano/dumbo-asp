@@ -614,7 +614,7 @@ class SymbolicRule:
 
         class Transformer(clingo.ast.Transformer):
             def visit_Variable(self, node):
-                if str(node) not in the_variables:
+                if node.name not in the_variables:
                     return node
                 return node.update(name=prefix + node.name + suffix)
 
@@ -637,6 +637,7 @@ class SymbolicRule:
                 super().__init__()
                 self.substitutions = []
 
+            # def visit_BodyAggregateElement(self, node):  NOT SUPPORTED AT THE MOMENT
             def visit_ConditionalLiteral(self, node):
                 substitutions = herbrand_base.compute_substitutions(
                     arguments=','.join(str(arg) for arg in node.literal.atom.symbol.arguments),
