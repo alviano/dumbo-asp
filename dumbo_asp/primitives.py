@@ -785,7 +785,7 @@ class SymbolicRule:
 
     def to_zero_simplification_version(self, *, compact=False) -> "SymbolicRule":
         if compact:
-            atom = f"{Predicate.false().name}()"
+            atom = Predicate.false().name
         else:
             rule_vars_as_strings = ','.join(f'"{var}"' for var in self.global_safe_variables)
             rule_id = f'("{base64.b64encode(str(self).encode()).decode()}", ' \
@@ -1016,11 +1016,11 @@ class SymbolicProgram:
         false_predicate = Predicate.false().name
         return SymbolicProgram.of(
             [rule.to_zero_simplification_version(compact=compact) for rule in self],
-            SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate}().")
+            SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate}.")
             if extra_atoms else [],
-            SymbolicRule.parse(f"{{{false_predicate}()}}."),
-            SymbolicRule.parse(f":- {false_predicate}().") if compact else
-            SymbolicRule.parse(f":- #count{{0 : {false_predicate}(); "
+            SymbolicRule.parse(f"{{{false_predicate}}}."),
+            SymbolicRule.parse(f":- {false_predicate}.") if compact else
+            SymbolicRule.parse(f":- #count{{0 : {false_predicate}; "
                                f"RuleID, Substitution "
                                f": {false_predicate}(RuleID, Substitution)}} > 0."),
         )
