@@ -783,14 +783,17 @@ class SymbolicRule:
         Transformer().visit(self.__value)
         return Transformer.matched
 
-    def to_zero_simplification_version(self) -> "SymbolicRule":
-        rule_vars_as_strings = ','.join(f'"{var}"' for var in self.global_safe_variables)
-        rule_id = f'("{base64.b64encode(str(self).encode()).decode()}", ' \
-                  f'({rule_vars_as_strings}{"," if len(rule_vars_as_strings) == 1 else ""}))'
-        rule_vars = ','.join(self.global_safe_variables)
+    def to_zero_simplification_version(self, *, compact=False) -> "SymbolicRule":
+        if compact:
+            atom = Predicate.false().name
+        else:
+            rule_vars_as_strings = ','.join(f'"{var}"' for var in self.global_safe_variables)
+            rule_id = f'("{base64.b64encode(str(self).encode()).decode()}", ' \
+                      f'({rule_vars_as_strings}{"," if len(rule_vars_as_strings) == 1 else ""}))'
+            rule_vars = ','.join(self.global_safe_variables)
 
-        atom = f'{Predicate.false().name}({rule_id}, ' \
-               f'({rule_vars}{"," if len(rule_vars) == 1 else ""}))'
+            atom = f'{Predicate.false().name}({rule_id}, ' \
+                   f'({rule_vars}{"," if len(rule_vars) == 1 else ""}))'
 
         if self.is_choice_rule:
             if self.__value.head.elements:
@@ -1009,13 +1012,14 @@ class SymbolicProgram:
         model = Model.of_program(program).filter(lambda atom: atom.predicate.name == predicate)
         return tuple(SymbolicAtom.of_ground_atom(atom) for atom in model)
 
-    def to_zero_simplification_version(self, *, extra_atoms: Iterable[GroundAtom] = ()) -> "SymbolicProgram":
+    def to_zero_simplification_version(self, *, extra_atoms: Iterable[GroundAtom] = (), compact=False) -> "SymbolicProgram":
         false_predicate = Predicate.false().name
         return SymbolicProgram.of(
-            [rule.to_zero_simplification_version() for rule in self],
+            [rule.to_zero_simplification_version(compact=compact) for rule in self],
             SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate}.")
             if extra_atoms else [],
             SymbolicRule.parse(f"{{{false_predicate}}}."),
+            SymbolicRule.parse(f":- {false_predicate}.") if compact else
             SymbolicRule.parse(f":- #count{{0 : {false_predicate}; "
                                f"RuleID, Substitution "
                                f": {false_predicate}(RuleID, Substitution)}} > 0."),
