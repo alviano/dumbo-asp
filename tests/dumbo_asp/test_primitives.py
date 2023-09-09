@@ -725,7 +725,8 @@ def test_rule_to_zero_simplification_version():
 
 def test_rule_to_zero_simplification_version_compact():
     rule = SymbolicRule.parse("a(X) :- b(X,Y).").to_zero_simplification_version(compact=True)
-    assert rule == SymbolicRule.parse('__false__ |\na(X) :- b(X,Y).')
+    assert rule == SymbolicRule.parse('__false__() |\na(X) :- b(X,Y).')
+    assert rule == SymbolicRule.parse('__false__() |\na(X) :- b(X,Y).')
 
 
 def test_rule_is_choice_rule():
@@ -775,9 +776,9 @@ __false__(("cChYKSA6LSBlKFgsWSku", ("X","Y")), (X,Y)) |
 p(X) :- e(X,Y).
 __false__(("ZShYLFkpIDotIFggPSAxMS4uMTMsIFkgPSAxMCAtIFgvMi4=", ("X","Y")), (X,Y)) |
 e(X,Y) :- X = 11..13, Y = 10 - X/2.
-a | b | c | d :- __false__.
-{__false__}.
-:- #count{0 : __false__; RuleID, Substitution : __false__(RuleID, Substitution)} > 0.
+a | b | c | d :- __false__().
+{__false__()}.
+:- #count{0 : __false__(); RuleID, Substitution : __false__(RuleID, Substitution)} > 0.
     """.strip()
 
 
