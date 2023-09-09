@@ -753,7 +753,8 @@ class SymbolicRule:
                                 "not not " if node.literal.sign == clingo.ast.Sign.DoubleNegation
                                 else ""
                             ) +
-                            f"{node.literal.atom.symbol.name}({','.join(str(arg) for arg in arguments)})"
+                            f"{node.literal.atom.symbol.name}({','.join(str(arg) for arg in arguments)})" if arguments
+                            else f"{node.literal.atom.symbol.name}"
                             for arguments in substitutions
                         ]
                     )
