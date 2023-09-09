@@ -1,8 +1,13 @@
+import base64
+import json
 import subprocess
+import webbrowser
+import zlib
 from pathlib import Path
 from typing import Final, Iterable
 
 import clingo
+import igraph
 import typeguard
 from clingox.reify import reify_program
 from dumbo_utils.primitives import PositiveIntegerOrUnbounded
@@ -241,6 +246,66 @@ def pack_asp_chef_url(recipe: str, the_input: str | Model | Iterable[Model]) -> 
     url = url.replace(r"#.*;", "#", 1)
     url = url.replace("#", "#" + compress_object_for_url({"input": the_input}, suffix="") + ";", 1)
     return url
+
+
+@typeguard.typechecked
+def open_graph_in_xasp_navigator(graph_model: Model):
+    reason_map: Final = {
+        "true": {
+            "support": "support",
+            "constraint": "required to falsify body",
+            "last support": "initial well founded",
+        },
+        "false": {
+            "lack of support": "lack of support",
+            "choice": "choice rule",
+            "constraint": "required to falsify body",
+            "last support": "initial well founded",
+        },
+    }
+
+    graph = igraph.Graph(directed=True)
+
+    atom_to_rule = {}
+    for node in graph_model.filter(when=lambda atom: atom.predicate_name == "node"):
+        name = node.arguments[0].string
+        value = node.arguments[1].name
+        reason = node.arguments[2].arguments[0].name.replace('_', ' ')
+        atom_to_rule[name] = node.arguments[2].arguments[1].string if len(node.arguments[2].arguments) == 2 else None
+        graph.add_vertex(name, label=f"{name}\n{reason_map[value][reason]}")
+
+    for link in graph_model.filter(when=lambda atom: atom.predicate_name == "link"):
+        source = link.arguments[0].string
+        target = link.arguments[1].string
+        label = atom_to_rule[source]
+        graph.add_edge(source, target, label=label)
+
+    #layout = graph.layout_sugiyama()
+    layout = graph.layout_reingold_tilford()
+    res = {
+        "nodes": [
+            {
+                "id": index,
+                "label": node.attributes()["label"],
+                "x": layout.coords[index][0],
+                "y": layout.coords[index][1],
+            }
+            for index, node in enumerate(graph.vs)
+        ],
+        "links": [
+            {
+                "source": link.tuple[0],
+                "target": link.tuple[1],
+                "label": link.attributes()["label"],
+            }
+            for link in graph.es
+        ],
+    }
+    url = "https://xasp-navigator.netlify.app/#"
+    # url = "http://localhost:5173/#"
+    json_dump = json.dumps(res, separators=(',', ':')).encode()
+    url += base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
+    webbrowser.open(url, new=0, autoraise=True)
 
 
 META_MODELS = """

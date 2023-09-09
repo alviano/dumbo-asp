@@ -788,3 +788,84 @@ c(1).
     assert variables["a(X) :- b(X,Y), not c(Y)."] == {'X': 0, 'Y': 1}
     assert [[str(x) for x in sub.arguments] for sub in substitutions["a(X) :- b(X,Y), not c(Y)."]] == \
            [['1', '1'], ['1', '2']]
+
+
+def test_rule_positive_body_literals():
+    assert len(SymbolicRule.parse(":- b(X), c(X), not d(X).").positive_body_literals) == 2
+    assert len(SymbolicRule.parse("a(X) :- X == 1..2.").positive_body_literals) == 0
+
+
+def test_rule_negative_body_literals():
+    assert len(SymbolicRule.parse(":- b(X), c(X), not d(X).").negative_body_literals) == 1
+    assert len(SymbolicRule.parse("a(X) :- X == 1..2, not X == 2..3.").negative_body_literals) == 0
+
+
+def test_rule_serialization():
+    assert Model.of_atoms(SymbolicRule.parse("a(1) :- b(1,2), not c(2).").serialize()).as_facts == """
+head("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==","YSgxKQ==").
+neg_body("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==","YygyKQ==").
+pos_body("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==","YigxLDIp").
+rule("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==").    
+    """.strip()
+
+
+def test_program_serialization():
+    assert Model.of_atoms(SymbolicProgram.parse("""
+a(1) :- b(1,2), not c(2).
+b(1,2).
+    """.strip()).serialize()) == Model.of_program("""
+head("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==","YSgxKQ==").
+head("YigxLDIpLg==","YigxLDIp").
+neg_body("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==","YygyKQ==").
+pos_body("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==","YigxLDIp").
+rule("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==").
+rule("YigxLDIpLg==").
+    """.strip())
+
+
+def test_constraint_serialization():
+    assert Model.of_atoms(SymbolicRule.parse(":- b(1,2), not c(2).".strip()).serialize(base64_encode=False)) == \
+           Model.of_program("""
+neg_body(":- b(1,2), not c(2).","c(2)").
+pos_body(":- b(1,2), not c(2).","b(1,2)").
+rule(":- b(1,2), not c(2).").
+           """.strip())
+
+
+def test_choice_rule_serialization():
+    assert Model.of_atoms(SymbolicRule.parse("{a; b} = 1 :- c.".strip()).serialize(base64_encode=False)) == \
+           Model.of_program("""
+choice("{a; b} = 1 :- c.",1,1).
+head("{a; b} = 1 :- c.","a").
+head("{a; b} = 1 :- c.","b").
+pos_body("{a; b} = 1 :- c.","c").
+rule("{a; b} = 1 :- c.").
+           """.strip())
+
+
+def test_disjunctive_rule_serialization():
+    assert Model.of_atoms(SymbolicRule.parse("a | b :- c.".strip()).serialize(base64_encode=False)) == \
+           Model.of_program("""
+head("a | b :- c.","a").
+head("a | b :- c.","b").
+pos_body("a | b :- c.","c").
+rule("a | b :- c.").
+           """.strip())
+
+
+def test_interval_serialization():
+    assert Model.of_atoms(SymbolicRule.parse("a :- 1 = 2..3.").serialize(base64_encode=False)) == \
+           Model.of_program("""
+head("a :- 1 = 2..3.","a").
+pos_body("a :- 1 = 2..3.","1 = (2..3)").
+rule("a :- 1 = 2..3.").
+           """.strip())
+    assert Model.of_atoms(SymbolicRule.parse("a :- 2 = 1..3.").serialize(base64_encode=False)) == \
+           Model.of_program("""
+head("a :- 2 = 1..3.","a").
+rule("a :- 2 = 1..3.").
+pos_body("a :- 2 = 1..3.", "2 = (1..3)").
+
+rule("2 = (1..3)").
+head("2 = (1..3)", "2 = (1..3)").
+           """.strip())

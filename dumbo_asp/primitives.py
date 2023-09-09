@@ -12,6 +12,7 @@ from typing import Callable, Optional, Iterable, Union, Any, Final, Dict
 import clingo
 import clingo.ast
 import typeguard
+from clingo.ast import ComparisonOperator
 from dumbo_utils.primitives import PrivateKey
 from dumbo_utils.validation import validate, ValidationError
 
@@ -477,6 +478,10 @@ class SymbolicRule:
         return self.__value.head.ast_type == clingo.ast.ASTType.Aggregate
 
     @property
+    def is_disjunctive_rule(self) -> bool:
+        return self.__value.head.ast_type == clingo.ast.ASTType.Disjunction
+
+    @property
     def is_constraint(self) -> bool:
         return self.head_atom == SymbolicAtom.of_false()
 
@@ -486,6 +491,99 @@ class SymbolicRule:
             validate("#false", self.__value.head.atom.value, equals=0)
             return SymbolicAtom.of_false()
         return SymbolicAtom.of(self.__value.head.atom.symbol)
+
+    @staticmethod
+    def __compute_choice_bounds(choice):
+        left, right = 0, "unbounded"
+        if choice.left_guard is not None:
+            validate("left guard", choice.left_guard.comparison != ComparisonOperator.NotEqual, equals=True)
+            if choice.left_guard.comparison == ComparisonOperator.LessThan:
+                left = f"{choice.left_guard.term} + 1"
+            elif choice.left_guard.comparison == ComparisonOperator.LessEqual:
+                left = f"{choice.left_guard.term}"
+            elif choice.left_guard.comparison == ComparisonOperator.GreaterThan:
+                right = f"{choice.left_guard.term} - 1"
+            elif choice.left_guard.comparison == ComparisonOperator.GreaterEqual:
+                right = f"{choice.left_guard.term}"
+            elif choice.left_guard.comparison == ComparisonOperator.Equal:
+                left = f"{choice.left_guard.term}"
+                right = f"{choice.left_guard.term}"
+            else:
+                raise ValueError("Choice with != are not supported.")
+        if choice.right_guard is not None:
+            validate("right guard", choice.right_guard.comparison, is_in=[ComparisonOperator.LessThan,
+                                                                          ComparisonOperator.LessEqual])
+            if choice.right_guard.comparison == ComparisonOperator.LessThan:
+                right = f"{choice.right_guard.term} + 1"
+            elif choice.right_guard.comparison == ComparisonOperator.LessEqual:
+                right = f"{choice.right_guard.term}"
+        return left, right
+
+    @property
+    def choice_lower_bound(self) -> str:
+        validate("choice rule", self.is_choice_rule, equals=True)
+        return self.__compute_choice_bounds(self.__value.head)[0]
+
+    @property
+    def choice_upper_bound(self) -> str:
+        validate("choice rule", self.is_choice_rule, equals=True)
+        return self.__compute_choice_bounds(self.__value.head)[1]
+
+    @property
+    def positive_body_literals(self) -> tuple[SymbolicAtom, ...]:
+        return tuple(SymbolicAtom.of(literal.atom.symbol)
+                     for literal in self.__value.body
+                     if literal.sign == clingo.ast.Sign.NoSign and "symbol" in literal.atom.keys())
+
+    @property
+    def negative_body_literals(self) -> tuple[SymbolicAtom, ...]:
+        return tuple(SymbolicAtom.of(literal.atom.symbol)
+                     for literal in self.__value.body
+                     if literal.sign == clingo.ast.Sign.Negation and "symbol" in literal.atom.keys())
+
+    def serialize(self, *, base64_encode: bool = True) -> tuple[GroundAtom, ...]:
+        def b64(s):
+            return f'"{base64.b64encode(str(s).encode()).decode()}"' if base64_encode else \
+                str(clingo.String(str(s)))
+        rule = b64(self)
+        res = [f'rule({rule})']
+        if self.is_normal_rule:
+            if not self.is_constraint:
+                res.append(f"head({rule}, {b64(self.head_atom)})")
+        elif self.is_choice_rule:
+            lb, ub = self.__compute_choice_bounds(self.__value.head)
+            res.append(f"choice({rule}, {lb}, {ub})")
+            for atom in self.__value.head.elements:
+                assert not atom.condition  # extend to conditional
+                res.append(f"head({rule}, {b64(atom)})")
+        elif self.is_disjunctive_rule:
+            for atom in self.__value.head.elements:
+                assert not atom.condition  # extend to conditional
+                res.append(f"head({rule}, {b64(atom)})")
+        else:
+            assert False
+        for literal in self.__value.body:
+            if "atom" not in literal.keys():
+                assert False  # extend?
+            if literal.sign == clingo.ast.Sign.NoSign:
+                predicate = "pos_body"
+            elif literal.sign == clingo.ast.Sign.Negation:
+                predicate = "neg_body"
+            else:
+                assert False  # extend
+
+            if literal.atom.ast_type == clingo.ast.ASTType.Comparison:
+                if Model.empty().compute_substitutions(
+                    arguments="",
+                    number_of_arguments=0,
+                    conjunctive_query=str(literal.atom)
+                ):
+                    atom = b64(literal.atom)
+                    res.append(f"rule({atom})")
+                    res.append(f"head({atom}, {atom})")
+                    res.append(f"hide({atom})")
+            res.append(f'{predicate}({rule}, {b64(literal.atom)})')
+        return tuple(GroundAtom.parse(atom) for atom in res)
 
     @cached_property
     def head_variables(self) -> tuple[str, ...]:
@@ -797,6 +895,12 @@ class SymbolicProgram:
             res[key].append(atom.arguments[1])
             variables[key] = {arg.string: index for index, arg in enumerate(atom.arguments[0].arguments[1].arguments)}
         return res, variables
+
+    def serialize(self, *, base64_encode: bool = True) -> tuple[GroundAtom, ...]:
+        res = []
+        for rule in self:
+            res.extend(rule.serialize(base64_encode=base64_encode))
+        return tuple(dict.fromkeys(res))
 
     @cached_property
     def predicates(self) -> tuple[Predicate, ...]:
