@@ -578,10 +578,11 @@ class SymbolicRule:
                     number_of_arguments=0,
                     conjunctive_query=str(literal.atom)
                 ):
-                    atom = b64(literal.atom)
-                    res.append(f"rule({atom})")
-                    res.append(f"head({atom}, {atom})")
-                    res.append(f"hide({atom})")
+                    if predicate == "pos_body":
+                        continue
+                else:
+                    if predicate == "neg_body":
+                        continue
             res.append(f'{predicate}({rule}, {b64(literal.atom)})')
         return tuple(GroundAtom.parse(atom) for atom in res)
 

@@ -4,7 +4,7 @@ from dumbo_utils.primitives import PositiveIntegerOrUnbounded
 from dumbo_asp.primitives import SymbolicProgram, Template, Model, GroundAtom
 from dumbo_asp.queries import compute_minimal_unsatisfiable_subsets, validate_in_all_models, \
     validate_cannot_be_true_in_any_stable_model, validate_cannot_be_extended_to_stable_model, enumerate_models, \
-    enumerate_counter_models, validate_in_all_models_of_the_reduct, open_graph_in_xasp_navigator
+    enumerate_counter_models, validate_in_all_models_of_the_reduct
 
 
 def test_compute_minimal_unsatisfiable_subsets():

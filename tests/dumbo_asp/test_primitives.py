@@ -1,5 +1,4 @@
 from builtins import ValueError
-from datetime import datetime
 from unittest.mock import patch
 
 import clingo
@@ -864,8 +863,4 @@ rule("a :- 1 = 2..3.").
            Model.of_program("""
 head("a :- 2 = 1..3.","a").
 rule("a :- 2 = 1..3.").
-pos_body("a :- 2 = 1..3.", "2 = (1..3)").
-
-rule("2 = (1..3)").
-head("2 = (1..3)", "2 = (1..3)").
            """.strip())
