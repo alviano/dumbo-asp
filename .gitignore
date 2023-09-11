@@ -133,4 +133,4 @@ dmypy.json
 ignore_*.py
 test_ignore_*.py
 
-.out_of_git
+out_of_git
