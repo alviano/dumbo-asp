@@ -12,7 +12,7 @@ from typing import Callable, Optional, Iterable, Union, Any, Final, Dict
 import clingo
 import clingo.ast
 import typeguard
-from clingo.ast import ComparisonOperator
+from clingo.ast import ComparisonOperator, Location
 from dumbo_utils.primitives import PrivateKey
 from dumbo_utils.validation import validate, ValidationError
 
@@ -449,8 +449,7 @@ class SymbolicRule:
         program = Parser.parse_program(string)
         validate("one rule", program, length=1,
                  help_msg=f"Unexpected sequence of {len(program)} rules in {utils.one_line(string)}")
-        return SymbolicRule(program[0], utils.extract_parsed_string(string, program[0].location), disabled=disabled,
-                            key=SymbolicRule.__key)
+        return SymbolicRule(program[0], string, disabled=disabled, key=SymbolicRule.__key)
 
     @staticmethod
     def of(value: clingo.ast.AST, disabled: bool = False) -> "SymbolicRule":
@@ -661,12 +660,21 @@ class SymbolicRule:
         return SymbolicRule(self.__value, self.__parsed_string, True, key=self.__key)
 
     def with_extended_body(self, atom: SymbolicAtom, sign: clingo.ast.Sign = clingo.ast.Sign.NoSign) -> "SymbolicRule":
-        string = self.__parsed_string[:-1] if self.__parsed_string is not None else str(self)[:-1]
         literal = f"{atom}" if sign == clingo.ast.Sign.NoSign else \
             f"not {atom}" if sign == clingo.ast.Sign.Negation else \
-                f"not not {atom}"
-        return self.parse(f"{string}; {literal}." if len(self.__value.body) > 0 else f"{string} :- {literal}.",
-                          self.disabled)
+            f"not not {atom}"
+        if self.__parsed_string is None:
+            string = str(self)
+            line = 1
+            column = len(string) - 1
+        else:
+            string = self.__parsed_string
+            line = self.__value.location.end.line
+            column = self.__value.location.end.column - 1
+        new_rule = utils.insert_in_parsed_string(
+            f"; {literal}" if len(self.__value.body) > 0 else f" :- {literal}", string, line, column
+        )
+        return self.parse(new_rule, self.disabled)
 
     def body_as_string(self, separator: str = "; ") -> str:
         return separator.join(str(x) for x in self.__value.body)
@@ -718,19 +726,24 @@ class SymbolicRule:
             def __init__(self):
                 super().__init__()
                 self.possibly_has_local_variables = False
+                self.locations = []
 
             def visit_Variable(self, node):
-                if node.name not in the_variables:
-                    return node
-                return node.update(name=prefix + node.name + suffix)
+                if node.name in the_variables:
+                    self.locations.append((node.location, prefix + node.name + suffix))
+                return node
 
             # def visit_BodyAggregateElement(self, node):  NOT SUPPORTED AT THE MOMENT
             def visit_ConditionalLiteral(self, node):
                 self.possibly_has_local_variables = True
-                return node.update(**self.visit_children(node))
+                self.visit_children(node)
+                return node
 
         transformer = Transformer()
-        fmt = str(self.of(transformer.visit(self.__value)))
+        transformer.visit(self.__value)
+        fmt = self.__parsed_string or str(self.__value)
+        for location, replacement in reversed(transformer.locations):
+            fmt = utils.replace_in_parsed_string(fmt, location, replacement)
 
         pattern = f"{prefix}({'|'.join(var for var in the_variables)}){suffix}"
         var_to_index = {var: index for index, var in enumerate(the_variables)}
@@ -741,7 +754,7 @@ class SymbolicRule:
         if expand_also_local_variables and transformer.possibly_has_local_variables:
             return tuple(
                 SymbolicRule.parse(apply([str(s) for s in substitution]), self.disabled)
-                .__expand_local_variables(herbrand_base=herbrand_base)
+                .__expand_local_variables(herbrand_base=herbrand_base, the_uuid=prefix)
                 for substitution in substitutions
             )
         else:
@@ -750,7 +763,7 @@ class SymbolicRule:
                 for substitution in substitutions
             )
 
-    def __expand_local_variables(self, *, herbrand_base: "Model") -> "SymbolicRule":
+    def __expand_local_variables(self, *, herbrand_base: "Model", the_uuid: str) -> "SymbolicRule":
         class Transformer(clingo.ast.Transformer):
             def __init__(self):
                 super().__init__()
@@ -763,10 +776,12 @@ class SymbolicRule:
                     number_of_arguments=len(node.literal.atom.symbol.arguments),
                     conjunctive_query=f"{', '.join(str(condition) for condition in node.condition)}",
                 )
-                the_uuid: Final = f"__uuid_{uuid()}__"
                 self.substitutions.append(
                     (
-                        the_uuid,
+                        Location(
+                            begin=node.location.begin,
+                            end=node.condition[-1].location.end if node.condition else node.location.end
+                        ),
                         [
                             (
                                 "not " if node.literal.sign == clingo.ast.Sign.Negation else
@@ -779,13 +794,13 @@ class SymbolicRule:
                         ]
                     )
                 )
-                return clingo.ast.Literal(node.location, clingo.ast.Sign.NoSign,
-                                          clingo.ast.Function(node.location, the_uuid, [], False))
+                return node
 
         transformer = Transformer()
-        rule = str(self.of(transformer.visit(self.__value), False))
-        for predicate, atoms in transformer.substitutions:
-            rule = rule.replace(predicate, '; '.join(atoms))
+        transformer.visit(self.__value)
+        rule = self.__parsed_string or str(self.__value)
+        for location, atoms in reversed(transformer.substitutions):
+            rule = utils.replace_in_parsed_string(rule, location, '; '.join(atoms))
         return SymbolicRule.parse(rule, disabled=self.disabled)
 
     def expand_global_safe_variables(
@@ -1020,8 +1035,8 @@ class SymbolicProgram:
         rules = []
         for rule in self.__rules:
             if not rule.disabled or expand_also_disabled_rules:
-                rules.extend(rule.expand_global_and_local_variables(
-                    herbrand_base=self.herbrand_base_without_false_predicate)
+                rules.extend(
+                    rule.expand_global_and_local_variables(herbrand_base=self.herbrand_base_without_false_predicate)
                 )
             else:
                 rules.append(rule)

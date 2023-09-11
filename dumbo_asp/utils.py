@@ -19,7 +19,7 @@ def extract_parsed_string(string: str, location: clingo.ast.Location) -> str:
         res.append(lines[location.begin.line - 1][location.begin.column - 1:])
         res.extend(lines[location.begin.line:location.end.line - 1])
         res.append(lines[location.end.line - 1][:location.end.column - 1])
-    return '\n'.join(line.rstrip() for line in res if line.strip())
+    return '\n'.join(line for line in res)
 
 
 @typeguard.typechecked
@@ -27,6 +27,16 @@ def insert_in_parsed_string(addendum: str, string: str, line: int, column: int) 
     lines = string.split('\n')
     lines[line - 1] = lines[line - 1][:column - 1] + addendum + lines[line - 1][column - 1:]
     return '\n'.join(lines)
+
+
+@typeguard.typechecked
+def replace_in_parsed_string(string: str, location: clingo.ast.Location, new_content: str) -> str:
+    lines = string.split('\n')
+    lines[location.begin.line - 1] = lines[location.begin.line - 1][:location.begin.column - 1] + \
+                                     new_content + \
+                                     lines[location.end.line - 1][location.end.column - 1:]
+    lines = lines[:location.begin.line] + lines[location.end.line:]
+    return '\n'.join(line for line in lines)
 
 
 @typeguard.typechecked

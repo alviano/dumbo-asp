@@ -249,7 +249,7 @@ def test_symbolic_rule_with_extended_body():
     assert str(SymbolicRule.parse("a :- b.").with_extended_body(SymbolicAtom.parse("c"), clingo.ast.Sign.Negation)) == \
            "a :- b; not c."
     assert str(SymbolicRule.parse(" a( X , Y ) . ").with_extended_body(SymbolicAtom.parse(" b( Z ) "))) == \
-           "a( X , Y )  :- b( Z )."
+           " a( X , Y )  :- b( Z ). "
 
 
 def test_symbolic_rule_body_as_string():
@@ -466,7 +466,7 @@ b :- a(X) : X = 1..3.
     """)
     program = program.expand_global_and_local_variables()
     assert str(program) == """
-{ a(1); a(2); a(3) }.
+{a(1); a(2); a(3)}.
 b :- a(1); a(2); a(3).
     """.strip()
 
@@ -478,27 +478,27 @@ b :- not a(X) : X = 1..3.
     """)
     program = program.expand_global_and_local_variables()
     assert str(program) == """
-{ a(1); a(2); a(3) }.
+{a(1); a(2); a(3)}.
 b :- not a(1); not a(2); not a(3).
     """.strip()
 
 
 def test_expand_conditional_literal_in_aggregate():
     program = SymbolicProgram.parse("""
-{a(1..3)}.
+{ a(1..3) }.
 b :- #sum{X : a(X)} >= 3.
     """)
     program = program.expand_global_and_local_variables()
     assert str(program) == """
 { a(1); a(2); a(3) }.
-b :- 3 <= #sum { X: a(X) }.
+b :- #sum{X : a(X)} >= 3.
     """.strip()
 
 
 def test_expand_skips_disabled_rules_by_default():
     program = SymbolicProgram.of(SymbolicRule.parse("""
 {a(X) : X = 1..3}.
-    """).disable())
+    """.strip()).disable())
     program = program.expand_global_and_local_variables()
     assert str(program) == """
 %* {a(X) : X = 1..3}. *%
@@ -508,22 +508,22 @@ def test_expand_skips_disabled_rules_by_default():
 def test_expand_disabled_rule():
     program = SymbolicProgram.of(SymbolicRule.parse("""
 {a(X) : X = 1..3}.
-    """).disable())
+    """.strip()).disable())
     program = program.expand_global_and_local_variables(expand_also_disabled_rules=True)
     assert str(program) == """
-%* { a(1); a(2); a(3) }. *%
+%* {a(1); a(2); a(3)}. *%
     """.strip()
 
 
 def test_expand_disabled_rule_into_several_rules():
     program = SymbolicProgram.of(SymbolicRule.parse("""
 a(X) :- X = 1..3.
-    """).disable())
+    """.strip()).disable())
     program = program.expand_global_and_local_variables(expand_also_disabled_rules=True)
     assert str(program) == """
-%* a(1) :- 1 = (1..3). *%
-%* a(2) :- 2 = (1..3). *%
-%* a(3) :- 3 = (1..3). *%
+%* a(1) :- 1 = 1..3. *%
+%* a(2) :- 2 = 1..3. *%
+%* a(3) :- 3 = 1..3. *%
     """.strip()
 
 
