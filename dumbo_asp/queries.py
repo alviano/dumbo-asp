@@ -271,7 +271,7 @@ def open_graph_in_xasp_navigator(graph_model: Model):
         name = node.arguments[0].string
         value = node.arguments[1].name
         reason = node.arguments[2].arguments[0].name.replace('_', ' ')
-        atom_to_rule[name] = node.arguments[2].arguments[1].string if len(node.arguments[2].arguments) == 2 else None
+        atom_to_rule[name] = node.arguments[2].arguments[1].string if len(node.arguments[2].arguments) == 2 else "" # fix (the label possibly come from the link)
         graph.add_vertex(name, label=f"{name}\n{reason_map[value][reason]}")
 
     for link in graph_model.filter(when=lambda atom: atom.predicate_name == "link"):

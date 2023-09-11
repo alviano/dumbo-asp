@@ -696,10 +696,13 @@ class SymbolicRule:
 
         return self.of(Transformer().visit(self.__value), self.disabled)
 
-    def expand_global_safe_variables(self, *, variables: Iterable[str],
-                                     herbrand_base: "Model") -> tuple["SymbolicRule", ...]:
-        if not variables:
-            return (self,)
+    def __expand_global_safe_variables(
+            self,
+            *,
+            variables: Iterable[str],
+            herbrand_base: "Model",
+            expand_also_local_variables=False,
+    ) -> tuple["SymbolicRule", ...]:
         the_variables: Final = set(var for var in variables if var in self.global_safe_variables)
         validate("variables", set(variables), equals=the_variables)
         substitutions = herbrand_base.compute_substitutions(
@@ -712,12 +715,22 @@ class SymbolicRule:
         suffix = uuid()
 
         class Transformer(clingo.ast.Transformer):
+            def __init__(self):
+                super().__init__()
+                self.possibly_has_local_variables = False
+
             def visit_Variable(self, node):
                 if node.name not in the_variables:
                     return node
                 return node.update(name=prefix + node.name + suffix)
 
-        fmt = str(self.of(Transformer().visit(self.__value)))
+            # def visit_BodyAggregateElement(self, node):  NOT SUPPORTED AT THE MOMENT
+            def visit_ConditionalLiteral(self, node):
+                self.possibly_has_local_variables = True
+                return node.update(**self.visit_children(node))
+
+        transformer = Transformer()
+        fmt = str(self.of(transformer.visit(self.__value)))
 
         pattern = f"{prefix}({'|'.join(var for var in the_variables)}){suffix}"
         var_to_index = {var: index for index, var in enumerate(the_variables)}
@@ -725,12 +738,19 @@ class SymbolicRule:
         def apply(substitution):
             return re.sub(pattern, lambda m: substitution[var_to_index[m.group(1)]], fmt)
 
-        return tuple(
-            SymbolicRule.parse(apply([str(s) for s in substitution]), self.disabled)
-            for substitution in substitutions
-        )
+        if expand_also_local_variables and transformer.possibly_has_local_variables:
+            return tuple(
+                SymbolicRule.parse(apply([str(s) for s in substitution]), self.disabled)
+                .__expand_local_variables(herbrand_base=herbrand_base)
+                for substitution in substitutions
+            )
+        else:
+            return tuple(
+                SymbolicRule.parse(apply([str(s) for s in substitution]), self.disabled)
+                for substitution in substitutions
+            )
 
-    def expand_global_and_local_variables(self, *, herbrand_base: "Model") -> tuple["SymbolicRule", ...]:
+    def __expand_local_variables(self, *, herbrand_base: "Model") -> "SymbolicRule":
         class Transformer(clingo.ast.Transformer):
             def __init__(self):
                 super().__init__()
@@ -762,15 +782,24 @@ class SymbolicRule:
                 return clingo.ast.Literal(node.location, clingo.ast.Sign.NoSign,
                                           clingo.ast.Function(node.location, the_uuid, [], False))
 
-        result = []
-        for partial_ground_rule in self.expand_global_safe_variables(variables=self.global_safe_variables,
-                                                                     herbrand_base=herbrand_base):
-            transformer = Transformer()
-            rule = str(self.of(transformer.visit(partial_ground_rule.__value), False))
-            for predicate, atoms in transformer.substitutions:
-                rule = rule.replace(predicate, '; '.join(atoms))
-            result.append(SymbolicRule.parse(rule, disabled=self.disabled))
-        return tuple(result)
+        transformer = Transformer()
+        rule = str(self.of(transformer.visit(self.__value), False))
+        for predicate, atoms in transformer.substitutions:
+            rule = rule.replace(predicate, '; '.join(atoms))
+        return SymbolicRule.parse(rule, disabled=self.disabled)
+
+    def expand_global_safe_variables(
+            self,
+            *,
+            variables: Iterable[str],
+            herbrand_base: "Model",
+    ) -> tuple["SymbolicRule", ...]:
+        return self.__expand_global_safe_variables(variables=variables, herbrand_base=herbrand_base,
+                                                   expand_also_local_variables=False)
+
+    def expand_global_and_local_variables(self, *, herbrand_base: "Model") -> tuple["SymbolicRule", ...]:
+        return self.__expand_global_safe_variables(variables=self.global_safe_variables, herbrand_base=herbrand_base,
+                                                   expand_also_local_variables=True)
 
     def match(self, *pattern: SymbolicAtom) -> bool:
         class Transformer(clingo.ast.Transformer):
