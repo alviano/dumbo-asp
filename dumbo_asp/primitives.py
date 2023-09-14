@@ -1004,7 +1004,8 @@ class SymbolicProgram:
     def apply_predicate_renaming(self, **kwargs: Predicate) -> "SymbolicProgram":
         return SymbolicProgram.of(rule.apply_predicate_renaming(**kwargs) for rule in self)
 
-    def expand_global_safe_variables(self, *, rule: SymbolicRule, variables: Iterable[str]) -> "SymbolicProgram":
+    def expand_global_safe_variables(self, *, rule: SymbolicRule, variables: Iterable[str],
+                                     herbrand_base: Optional["Model"] = None) -> "SymbolicProgram":
         rules = []
         for __rule in self.__rules:
             if rule != __rule:
@@ -1012,31 +1013,36 @@ class SymbolicProgram:
             else:
                 rules.extend(__rule.expand_global_safe_variables(
                     variables=variables,
-                    herbrand_base=self.herbrand_base_without_false_predicate
+                    herbrand_base=self.herbrand_base_without_false_predicate if herbrand_base is None else herbrand_base
                 ))
         return SymbolicProgram.of(rules)
 
     def expand_global_safe_variables_in_rules(
             self,
             rules_to_variables: Dict[SymbolicRule, Iterable[str]],
+            herbrand_base: Optional["Model"] = None,
     ) -> "SymbolicProgram":
         rules = []
         for __rule in self.__rules:
             if __rule in rules_to_variables.keys():
                 rules.extend(__rule.expand_global_safe_variables(
                     variables=rules_to_variables[__rule],
-                    herbrand_base=self.herbrand_base_without_false_predicate,
+                    herbrand_base=self.herbrand_base_without_false_predicate if herbrand_base is None else herbrand_base,
                 ))
             else:
                 rules.append(__rule)
         return SymbolicProgram.of(rules)
 
-    def expand_global_and_local_variables(self, *, expand_also_disabled_rules: bool = False) -> "SymbolicProgram":
+    def expand_global_and_local_variables(self, *, expand_also_disabled_rules: bool = False,
+                                          herbrand_base: Optional["Model"] = None) -> "SymbolicProgram":
         rules = []
         for rule in self.__rules:
             if not rule.disabled or expand_also_disabled_rules:
                 rules.extend(
-                    rule.expand_global_and_local_variables(herbrand_base=self.herbrand_base_without_false_predicate)
+                    rule.expand_global_and_local_variables(
+                        herbrand_base=self.herbrand_base_without_false_predicate
+                        if herbrand_base is None else herbrand_base
+                    )
                 )
             else:
                 rules.append(rule)
