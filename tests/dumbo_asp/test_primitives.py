@@ -815,6 +815,14 @@ a | b | c | d :- __false__.
     """.strip()
 
 
+def test_to_zero_simplification_keeps_all_atoms():
+    program = SymbolicProgram.parse("""
+a :- b.
+b :- a.
+    """.strip())
+    assert len(program.to_zero_simplification_version(extra_atoms=Model.of_program("a. b."), compact=True).herbrand_base_without_false_predicate) == 2
+
+
 def test_rules_grouped_by_false_predicate():
     program = SymbolicProgram.parse("""
 a(X) :- b(X,Y), not c(Y).

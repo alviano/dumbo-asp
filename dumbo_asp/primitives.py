@@ -1065,7 +1065,6 @@ class SymbolicProgram:
 
     def to_zero_simplification_version(self, *, extra_atoms: Iterable[GroundAtom] = (), compact=False) -> "SymbolicProgram":
         false_predicate = Predicate.false().name
-        false_predicate = Predicate.false().name
         return SymbolicProgram.of(
             [rule.to_zero_simplification_version(compact=compact) for rule in self],
             SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate}.")
