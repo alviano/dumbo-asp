@@ -1,3 +1,4 @@
+import webbrowser
 from builtins import ValueError
 from unittest.mock import patch
 
@@ -7,6 +8,7 @@ import pytest
 
 from dumbo_asp.primitives import Predicate, Parser, GroundAtom, Model, SymbolicRule, SymbolicProgram, SymbolicAtom, \
     SymbolicTerm, Template
+from dumbo_asp.queries import pack_asp_chef_url
 
 
 @pytest.fixture
@@ -338,6 +340,25 @@ a(X) :- foo(X).
 b(X,Y) :- c(Y); foo(X).
 %* __end_with__. *%
 """.strip()
+
+
+def test_expand_zero_global_variables():
+    rule = SymbolicRule.parse("""
+:- __false__.
+    """.strip())
+    program = SymbolicProgram.of(rule)
+    rules = rule.expand_global_safe_variables(variables=[], herbrand_base=program.herbrand_base)
+    assert len(rules) == 1
+
+
+def test_expand_zero_global_variables_with_local_variables():
+    rule = SymbolicRule.parse("""
+:- bar(X) : foo(X).
+    """.strip())
+    program = SymbolicProgram.of(rule)
+    rules = rule.expand_global_and_local_variables(herbrand_base=Model.of_program("foo(1..3)."))
+    assert len(rules) == 1
+    assert str(rules[0]) == ":- bar(3); bar(2); bar(1)."
 
 
 def test_expand_one_global_variable():
@@ -714,6 +735,83 @@ __apply_template__("@dumbo/symmetric closure", (relation, link), (closure, link)
 __apply_template__("@dumbo/spanning tree of undirected graph").
     """)
     program = Template.expand_program(program)
+    assert Model.of_program(program).filter(when=lambda atom: atom.predicate_name == "tree") == \
+           Model.of_atoms("tree(1,2) tree(2,3)".split())
+
+
+def test_foo():
+    program = SymbolicProgram.parse("""
+node(1..6).
+link(1,2).
+link(1,4).
+link(2,3).
+link(3,4).
+link(3,5).
+link(4,5).
+link(5,6).
+
+__template__("symmetric closure").
+    closure(X,Y) :- relation(X,Y).
+    closure(X,Y) :- relation(Y,X).
+__end__.
+
+__template__("reachable nodes").
+    reach(X) :- start(X).
+    reach(Y) :- reach(X), link(X,Y).
+__end__.
+
+__template__("connected graph").
+    __start(X) :- X = #min{Y : node(Y)}.
+    __apply_template__("reachable nodes", (start, __start), (reach, __reach)).
+    :- node(X), not __reach(X).
+__end__.
+
+__template__("spanning tree of undirected graph").
+    {tree(X,Y) : link(X,Y), X < Y} = C - 1 :- C = #count{X : node(X)}.
+    __apply_template__("symmetric closure", (relation, tree), (closure, __tree)).
+    __apply_template__("connected graph", (link, __tree)).
+__end__.
+
+__apply_template__("symmetric closure", (relation, link), (closure, link)).
+__apply_template__("spanning tree of undirected graph").
+
+
+__template__("@dumbo/exact copy (arity 2)").
+    output(X0,X1) :- input(X0,X1).
+    :- output(X0,X1), not input(X0,X1).
+__end__.
+
+__template__("@dumbo/transitive closure").
+    closure(X,Y) :- relation(X,Y).
+    closure(X,Z) :- closure(X,Y), relation(Y,Z).
+__end__.
+
+__template__("@dumbo/transitive closure guaranteed").
+    __apply_template__("@dumbo/transitive closure", (closure, __closure)).
+    __apply_template__("@dumbo/exact copy (arity 2)", (input, __closure), (output, closure)).
+__end__.
+
+
+__template__("@dumbo/transitive closure guaranteed").
+    __closure(X,Y) :- relation(X,Y).
+    __closure(X,Z) :- __closure(X,Y); relation(Y,Z).
+    closure(X0,X1) :- __closure(X0,X1).
+    :- closure(X0,X1); not __closure(X0,X1).
+__end__.
+
+
+    """)
+    program = Template.expand_program(program)
+    # print(Template.core_templates_as_parsable_string())
+    # assert False
+
+    print(program)
+    webbrowser.open(
+        pack_asp_chef_url(
+            "http://localhost:5188/#eJytU8mSmzAU/CWBh0lxyCHjBQsbuQw2Wm4gYiMQSxVm89fnyTOZ2PecVK2lX79+rd+z36b1h5Ut8TudfSSrWO9W6y5QZc885xuT5TPGXTA/42NHomd87gi8xxp1uIp7bruliN3vOqLadNI+w1mov86GjIVjxo7qUIk83RK9X/qzoKSV3lkd9O0HrnSJi0Zxyu+wr0hxvXGKnUOEEKn8fH8qbXGSN7GK88Dmb6IIFrAirEaVLj60rDYooW5vOM52nMuKNHhtDcKLOzlj0OKOmaeHtA7Uoe6UXISDfNG6GaU3Obhokaxjo++eeO7iCTeC6jrZQg8FHoPlqGC/Ewz4lN+ndqh3m2uLV80Nb0Po7dzQ5XTZRY5MKwd0AI7K60Gha7b1tYjyy35Ttns9GV/hjmzSCryKcr6LxmvqbZSgI3CUn5zeF8fnnOqdN7Vp1ZkaYvfKy//yijkvBRV5Rick5/GaUadMmK/5ItTiwfOmoK8+o5YSDENf6w7Xfp4wosGzd+CzRDSqhDowu/DCGbnAPHvwbuZU99k2eJ4n1CLG74s0OjxdcBZqMw9muQrealKEF/aYRVyAtxdBncL4JjYurA4CjMDvitPpLuDRfttB7aPxVwXU14cVKXlk5eKUq/3pOAX3EjISVlyhiazWFrfPiN+vszj9Mn0N0otn0NCm9pvh2EJGxmT5v7NwfmThMbvYBV/CNjOZgIzAvRH+S5lQkmcm58qvTV7Bpyadn+rVRHPmF6DtHSv8Dz98mQapYL/WOvWmIZtfzpFgOWI2GVLPnY3Xph6uLZcx9PMPjoRjqA==%21",
+            [Model.of_program(program).filter(when=lambda atom: atom.predicate_name == "tree")]
+        )
+    )
     assert Model.of_program(program).filter(when=lambda atom: atom.predicate_name == "tree") == \
            Model.of_atoms("tree(1,2) tree(2,3)".split())
 

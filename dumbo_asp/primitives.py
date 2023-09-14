@@ -717,7 +717,7 @@ class SymbolicRule:
             arguments=','.join(the_variables),
             number_of_arguments=len(the_variables),
             conjunctive_query=self.body_as_string(),
-        )
+        ) if the_variables else ([],)
 
         prefix = uuid()
         suffix = uuid()
@@ -1058,6 +1058,7 @@ class SymbolicProgram:
         return tuple(SymbolicAtom.of_ground_atom(atom) for atom in model)
 
     def to_zero_simplification_version(self, *, extra_atoms: Iterable[GroundAtom] = (), compact=False) -> "SymbolicProgram":
+        false_predicate = Predicate.false().name
         false_predicate = Predicate.false().name
         return SymbolicProgram.of(
             [rule.to_zero_simplification_version(compact=compact) for rule in self],
