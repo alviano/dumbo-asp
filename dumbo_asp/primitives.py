@@ -1308,11 +1308,13 @@ class Template:
     program: SymbolicProgram
     __static_uuid: str = dataclasses.field(default_factory=lambda: utils.uuid(), init=False)
 
-    __core_templates = {}
+    __core_templates = None
 
     @staticmethod
-    def __init_core_templates__():
-        validate("called once", Template.__core_templates, max_len=0, help_msg="Cannot be called twice")
+    def __init_core_templates():
+        if Template.__core_templates is not None:
+            return
+        Template.__core_templates = {}
 
         def register(template: str):
             name, program = template.strip().split('\n', maxsplit=1)
@@ -1382,18 +1384,22 @@ spanning tree of undirected graph
 
     @staticmethod
     def core_template(name: str) -> "Template":
+        Template.__init_core_templates()
         return Template.__core_templates[name]
 
     @staticmethod
     def is_core_template(name: str) -> bool:
+        Template.__init_core_templates()
         return name in Template.__core_templates
 
     @staticmethod
     def core_templates() -> int:
+        Template.__init_core_templates()
         return len(Template.__core_templates)
 
     @staticmethod
     def core_templates_as_parsable_string() -> str:
+        Template.__init_core_templates()
         res = []
         for key, value in Template.__core_templates.items():
             res.append(str(value))
@@ -1401,6 +1407,7 @@ spanning tree of undirected graph
 
     @staticmethod
     def expand_program(program: SymbolicProgram, *, limit: int = 100_000, trace: bool = False) -> SymbolicProgram:
+        Template.__init_core_templates()
         templates = {}
         template_under_read = None
         res = []
@@ -1470,6 +1477,7 @@ spanning tree of undirected graph
         return f"""Template(name="{self.name}", program={self.program})"""
 
     def instantiate(self, **kwargs: Predicate) -> SymbolicProgram:
+        Template.__init_core_templates()
         for arg in kwargs:
             validate("kwargs", arg.startswith('__'), equals=False,
                      help_msg="Local predicates cannot be renamed externally.")
@@ -1483,6 +1491,3 @@ spanning tree of undirected graph
                 elif predicate.name.startswith('__'):
                     mapping[predicate.name] = Predicate.parse(f"{predicate.name}_{local_uuid}")
         return self.program.apply_predicate_renaming(**mapping)
-
-
-Template.__init_core_templates__()
