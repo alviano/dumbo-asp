@@ -340,6 +340,25 @@ b(X,Y) :- c(Y); foo(X).
 """.strip()
 
 
+def test_expand_zero_global_variables():
+    rule = SymbolicRule.parse("""
+:- __false__.
+    """.strip())
+    program = SymbolicProgram.of(rule)
+    rules = rule.expand_global_safe_variables(variables=[], herbrand_base=program.herbrand_base)
+    assert len(rules) == 1
+
+
+def test_expand_zero_global_variables_with_local_variables():
+    rule = SymbolicRule.parse("""
+:- bar(X) : foo(X).
+    """.strip())
+    program = SymbolicProgram.of(rule)
+    rules = rule.expand_global_and_local_variables(herbrand_base=Model.of_program("foo(1..3)."))
+    assert len(rules) == 1
+    assert str(rules[0]) == ":- bar(3); bar(2); bar(1)."
+
+
 def test_expand_one_global_variable():
     rule = SymbolicRule.parse("""
 block((row, Row), (Row, Col)) :- Row = 1..9, Col = 1..9.
@@ -397,6 +416,20 @@ block((col, Col), (Row, Col)) :- Row = 1..9, Col = 1..9.
         program[1]: ["Col"],
     })
     assert len(program) == 9 + 9
+
+
+def test_expand_global_variables_wrt_herbrand_base():
+    program = SymbolicProgram.parse("""
+a(X) :- b(X).
+b(X) :- a(X).
+    """.strip())
+    program = program.expand_global_and_local_variables(
+        herbrand_base=program.to_zero_simplification_version(
+            extra_atoms=Model.of_program("a(1)."),
+            compact=True
+        ).herbrand_base_without_false_predicate
+    )
+    assert len(program) == 2
 
 
 def test_symbolic_term_int():
@@ -780,6 +813,14 @@ a | b | c | d :- __false__.
 {__false__}.
 :- #count{0 : __false__; RuleID, Substitution : __false__(RuleID, Substitution)} > 0.
     """.strip()
+
+
+def test_to_zero_simplification_keeps_all_atoms():
+    program = SymbolicProgram.parse("""
+a :- b.
+b :- a.
+    """.strip())
+    assert len(program.to_zero_simplification_version(extra_atoms=Model.of_program("a. b."), compact=True).herbrand_base_without_false_predicate) == 2
 
 
 def test_rules_grouped_by_false_predicate():
