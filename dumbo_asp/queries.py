@@ -268,19 +268,6 @@ def open_graph_in_xasp_navigator(graph_model: Model):
             "last support": "required false to satisfy body of last supporting rule",
         },
     }
-    color_map: Final = {
-        "true": {
-            "support": "#006400",
-            "constraint": "#90EE90",
-            "last support": "#99FD99",
-        },
-        "false": {
-            "lack of support": "#FF0000",
-            "choice": "#F08080",
-            "constraint": "#FF8C00",
-            "last support": "#8B0000",
-        },
-    }
 
     graph = igraph.Graph(directed=True)
 
@@ -290,7 +277,7 @@ def open_graph_in_xasp_navigator(graph_model: Model):
         value = node.arguments[1].name
         reason = node.arguments[2].arguments[0].name.replace('_', ' ')
         atom_to_rule[name] = node.arguments[2].arguments[1].string if len(node.arguments[2].arguments) == 2 else "" # fix (the label possibly come from the link)
-        graph.add_vertex(name, label=f"{name}\n{reason_map[value][reason]}", color=color_map[value][reason])
+        graph.add_vertex(name, label=f"{name}\n{reason_map[value][reason]}")
 
     for link in graph_model.filter(when=lambda atom: atom.predicate_name == "link"):
         source = link.arguments[0].string
@@ -305,7 +292,6 @@ def open_graph_in_xasp_navigator(graph_model: Model):
             {
                 "id": index,
                 "label": node.attributes()["label"],
-                "color": node.attributes()["color"],
                 "x": layout.coords[index][0],
                 "y": layout.coords[index][1],
             }
