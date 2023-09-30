@@ -5,8 +5,14 @@ import clingo
 import clingo.ast
 import pytest
 
-from dumbo_asp.primitives import Predicate, Parser, GroundAtom, Model, SymbolicRule, SymbolicProgram, SymbolicAtom, \
-    SymbolicTerm, Template
+from dumbo_asp.primitives.atoms import GroundAtom, SymbolicAtom
+from dumbo_asp.primitives.models import Model
+from dumbo_asp.primitives.parsers import Parser
+from dumbo_asp.primitives.predicates import Predicate
+from dumbo_asp.primitives.programs import SymbolicProgram
+from dumbo_asp.primitives.rules import SymbolicRule
+from dumbo_asp.primitives.templates import Template
+from dumbo_asp.primitives.terms import SymbolicTerm
 
 
 @pytest.fixture
@@ -130,6 +136,10 @@ def test_valid_model_of_atoms(atoms):
 def test_invalid_model_of_atoms(atoms):
     with pytest.raises(ValueError):
         Model.of_atoms(atoms)
+
+
+def test_model_of_empty_program():
+    assert len(Model.of_program("")) == 0
 
 
 def test_model_drop():
@@ -778,7 +788,8 @@ def test_rule_to_zero_simplification_version_choice_with_elements():
 def test_rule_to_zero_simplification_version_choice_with_no_elements():
     rule = SymbolicRule.parse("1 <= %* comment {} *% {} :- b(X,Y).").to_zero_simplification_version()
     assert rule == SymbolicRule.parse(
-        '1 <= %* comment {} *% {__false__(("MSA8PSAlKiBjb21tZW50IHt9IColIHt9IDotIGIoWCxZKS4=", ("X","Y")), (X,Y))} :- b(X,Y).')
+        '1 <= %* comment {} *% '
+        '{__false__(("MSA8PSAlKiBjb21tZW50IHt9IColIHt9IDotIGIoWCxZKS4=", ("X","Y")), (X,Y))} :- b(X,Y).')
 
 
 def test_rule_to_zero_simplification_version_constraint():
@@ -820,7 +831,8 @@ def test_to_zero_simplification_keeps_all_atoms():
 a :- b.
 b :- a.
     """.strip())
-    assert len(program.to_zero_simplification_version(extra_atoms=Model.of_program("a. b."), compact=True).herbrand_base_without_false_predicate) == 2
+    assert len(program.to_zero_simplification_version(extra_atoms=Model.of_program("a. b."), compact=True)
+               .herbrand_base_without_false_predicate) == 2
 
 
 def test_rules_grouped_by_false_predicate():

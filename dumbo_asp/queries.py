@@ -15,7 +15,11 @@ from dumbo_utils.url import compress_object_for_url
 from dumbo_utils.validation import validate
 
 from dumbo_asp import utils
-from dumbo_asp.primitives import SymbolicProgram, Model, SymbolicAtom, SymbolicRule, SymbolicTerm, GroundAtom
+from dumbo_asp.primitives.atoms import GroundAtom, SymbolicAtom
+from dumbo_asp.primitives.models import Model
+from dumbo_asp.primitives.programs import SymbolicProgram
+from dumbo_asp.primitives.rules import SymbolicRule
+from dumbo_asp.primitives.terms import SymbolicTerm
 
 
 @typeguard.typechecked
@@ -24,7 +28,7 @@ def compute_minimal_unsatisfiable_subsets(
         up_to: PositiveIntegerOrUnbounded = PositiveIntegerOrUnbounded.of(1),
         *,
         over_the_ground_program: bool = False,
-        clingo: Path = Path("clingo"),
+        clingo_path: Path = Path("clingo"),
         wasp: Path = Path("wasp"),
 ) -> list[SymbolicProgram]:
     predicate: Final = f"__mus__"
@@ -48,7 +52,8 @@ def compute_minimal_unsatisfiable_subsets(
         )
     # print(mus_program)
     res = subprocess.run(
-        ["bash", "-c", f"{clingo} --output=smodels | {wasp} --silent --mus={predicate} -n {up_to if up_to.is_int else 0}"],
+        ["bash", "-c",
+         f"{clingo_path} --output=smodels | {wasp} --silent --mus={predicate} -n {up_to if up_to.is_int else 0}"],
         input=str(mus_program).encode(),
         capture_output=True,
     )
@@ -280,7 +285,7 @@ def open_graph_in_xasp_navigator(graph_model: Model):
         label = atom_to_rule[source]
         graph.add_edge(source, target, label=label)
 
-    #layout = graph.layout_sugiyama()
+    # layout = graph.layout_sugiyama()
     layout = graph.layout_reingold_tilford()
     res = {
         "nodes": [
