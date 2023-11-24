@@ -73,6 +73,9 @@ output({terms}) :- input({terms}).
             if arity > 0:
                 register(f"collect arguments (arity {arity})\n" +
                          '\n'.join(f"output(X{index}) :- input({terms})." for index in range(arity)))
+                for other_arity in range(arity):
+                    register(f"collect argument {other_arity + 1} of {arity}\n" +
+                             f"output(X{other_arity}) :- input({terms}).")
 
         register_all("""
 symmetric closure
@@ -110,6 +113,44 @@ spanning tree of undirected graph
     {tree(X,Y) : link(X,Y), X < Y} = C - 1 :- C = #count{X : node(X)}.
     __apply_template__("@dumbo/symmetric closure", (relation, tree), (closure, __tree)).
     __apply_template__("@dumbo/connected graph", (link, __tree)).
+----
+
+all simple directed paths and their length
+    path_length((N,nil),0) :- node(N).
+    path_length((N',(N,P)),L+1) :- path_length((N,P),L), max_length(M), L < M, link(N,N'), not in_path(N',P).
+    path_length((N',(N,P)),L+1) :- path_length((N,P),L), not max_length(_),    link(N,N'), not in_path(N',P).
+    
+    in_path(N,(N,P)) :- path_length((N,P),_).
+    in_path(N',(N,P)) :- path_length((N,P),_), in_path(N',P).
+    
+    path(P) :- in_path(_,P).
+----
+
+all simple directed paths
+    __apply_template__("@dumbo/all simple directed paths and their length", (path_length, __path_length)).
+----
+
+all simple directed paths of given length
+    __apply_template__("@dumbo/all simple directed paths and their length",
+        (max_length, length), 
+        (path, __path), 
+        (in_path, __in_path),
+        (path_length, __path_length)
+    ).
+    
+    path(P) :- __path(P), __path_length(P,L), length(L).
+    in_path(N,P) :- path(P), __in_path(N,P).
+----
+
+equal sets
+    equals(S,S') :- set(S), set(S'), S < S';
+        in_set(X,S) : in_set(X,S');
+        in_set(X,S') : in_set(X,S).
+----
+
+discard duplicate sets
+    __apply_template__("@dumbo/equal sets", (equals, __equals)).
+    unique(S) :- set(S), not __equals(S,_).
 ----
         """)
 
