@@ -41,7 +41,7 @@ class Template:
     __static_uuid: str = dataclasses.field(default_factory=lambda: utils.uuid(), init=False)
 
     __core_templates = None
-    __core_templates_directory = Path(__file__).parent.parent.parent / "templates"
+    __core_templates_directory = Path(__file__).parent / "templates"
     __core_templates_files = [f"{name}.template.asp" for name in ["dumbo"]]
 
     @staticmethod
@@ -150,8 +150,12 @@ output({terms}) :- input({terms}).
                 validate("arity >= 1", rule.head_atom.predicate_arity, min_value=1)
                 validate("arg#0", rule.head_atom.arguments[0].is_string(), equals=True)
                 template_name = rule.head_atom.arguments[0].string_value()
-                template = Template.core_template(template_name) if Template.is_core_template(template_name) \
-                    else templates[template_name]
+                if Template.is_core_template(template_name):
+                    template = Template.core_template(template_name)
+                else:
+                    validate("known template", template_name in templates, equals=True,
+                             help_msg=f"Unknown template: {template_name}")
+                    template = templates[template_name]
                 mapping = {}
                 for argument in rule.head_atom.arguments[1:]:
                     validate("mapping args", argument.is_function(), equals=True)

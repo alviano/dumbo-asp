@@ -91,7 +91,7 @@ __template__("choice").
     __false(X) :- condition(X), not predicate(X).
 __end__.
     """)
-    with pytest.raises(KeyError):
+    with pytest.raises(ValueError):
         Template.expand_program(program)
 
 
@@ -101,7 +101,7 @@ __template__("foo").
     __apply_template__("foo").
 __end__.
     """)
-    with pytest.raises(KeyError):
+    with pytest.raises(ValueError):
         Template.expand_program(program)
 
 
