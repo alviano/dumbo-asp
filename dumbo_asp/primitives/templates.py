@@ -1,5 +1,6 @@
 import dataclasses
 from dataclasses import InitVar
+from pathlib import Path
 
 import clingo
 import clingo.ast
@@ -40,6 +41,8 @@ class Template:
     __static_uuid: str = dataclasses.field(default_factory=lambda: utils.uuid(), init=False)
 
     __core_templates = None
+    __core_templates_directory = Path(__file__).parent.parent.parent / "templates"
+    __core_templates_files = [f"{name}.template.asp" for name in ["dumbo"]]
 
     @staticmethod
     def __init_core_templates():
@@ -77,82 +80,9 @@ output({terms}) :- input({terms}).
                     register(f"collect argument {other_arity + 1} of {arity}\n" +
                              f"output(X{other_arity}) :- input({terms}).")
 
-        register_all("""
-symmetric closure
-    closure(X,Y) :- relation(X,Y).
-    closure(X,Y) :- relation(Y,X).
-----
-
-symmetric closure guaranteed
-    __apply_template__("@dumbo/symmetric closure", (closure, __closure)).
-    __apply_template__("@dumbo/exact copy (arity 2)", (input, __closure), (output, closure)).
-----
-
-reachable nodes
-    reach(X) :- start(X).
-    reach(Y) :- reach(X), link(X,Y).
-----
-
-connected graph
-    __start(X) :- X = #min{Y : node(Y)}.
-    __apply_template__("@dumbo/reachable nodes", (start, __start), (reach, __reach)).
-    :- node(X), not __reach(X).
-----
-
-transitive closure
-    closure(X,Y) :- relation(X,Y).
-    closure(X,Z) :- closure(X,Y), relation(Y,Z).
-----
-
-transitive closure guaranteed
-    __apply_template__("@dumbo/transitive closure", (closure, __closure)).
-    __apply_template__("@dumbo/exact copy (arity 2)", (input, __closure), (output, closure)).
-----
-
-spanning tree of undirected graph
-    {tree(X,Y) : link(X,Y), X < Y} = C - 1 :- C = #count{X : node(X)}.
-    __apply_template__("@dumbo/symmetric closure", (relation, tree), (closure, __tree)).
-    __apply_template__("@dumbo/connected graph", (link, __tree)).
-----
-
-all simple directed paths and their length
-    path_length((N,nil),0) :- node(N).
-    path_length((N',(N,P)),L+1) :- path_length((N,P),L), max_length(M), L < M, link(N,N'), not in_path(N',P).
-    path_length((N',(N,P)),L+1) :- path_length((N,P),L), not max_length(_),    link(N,N'), not in_path(N',P).
-    
-    in_path(N,(N,P)) :- path_length((N,P),_).
-    in_path(N',(N,P)) :- path_length((N,P),_), in_path(N',P).
-    
-    path(P) :- in_path(_,P).
-----
-
-all simple directed paths
-    __apply_template__("@dumbo/all simple directed paths and their length", (path_length, __path_length)).
-----
-
-all simple directed paths of given length
-    __apply_template__("@dumbo/all simple directed paths and their length",
-        (max_length, length), 
-        (path, __path), 
-        (in_path, __in_path),
-        (path_length, __path_length)
-    ).
-    
-    path(P) :- __path(P), __path_length(P,L), length(L).
-    in_path(N,P) :- path(P), __in_path(N,P).
-----
-
-equal sets
-    equals(S,S') :- set(S), set(S'), S < S';
-        in_set(X,S) : in_set(X,S');
-        in_set(X,S') : in_set(X,S).
-----
-
-discard duplicate sets
-    __apply_template__("@dumbo/equal sets", (equals, __equals)).
-    unique(S) :- set(S), not __equals(S,_).
-----
-        """)
+        for file in Template.__core_templates_files:
+            with open(Template.__core_templates_directory / file) as templates_file:
+                Template.expand_program(SymbolicProgram.parse(templates_file.read()), register_templates=True)
 
     @staticmethod
     def core_template(name: str) -> "Template":
@@ -178,7 +108,8 @@ discard duplicate sets
         return '\n'.join(res)
 
     @staticmethod
-    def expand_program(program: SymbolicProgram, *, limit: int = 100_000, trace: bool = False) -> SymbolicProgram:
+    def expand_program(program: SymbolicProgram, *, limit: int = 100_000, register_templates: bool = False,
+                       trace: bool = False) -> SymbolicProgram:
         Template.__init_core_templates()
         templates = {}
         template_under_read = None
@@ -207,8 +138,12 @@ discard duplicate sets
                 validate("not in a template", template_under_read)
                 if trace:
                     template_under_read[1].append(rule.disable())
-                templates[template_under_read[0]] = Template(name=Template.Name.parse(template_under_read[0]),
-                                                             program=SymbolicProgram.of(template_under_read[1]))
+                the_template = Template(name=Template.Name.parse(template_under_read[0]),
+                                        program=SymbolicProgram.of(template_under_read[1]))
+                if register_templates:
+                    Template.__core_templates[template_under_read[0]] = the_template
+                else:
+                    templates[template_under_read[0]] = the_template
                 template_under_read = None
             elif rule.head_atom.predicate_name == "__apply_template__":
                 validate("empty body", rule.is_fact, equals=True)
