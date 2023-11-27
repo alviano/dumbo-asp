@@ -41,8 +41,13 @@ class Template:
     __static_uuid: str = dataclasses.field(default_factory=lambda: utils.uuid(), init=False)
 
     __core_templates = None
-    __core_templates_directory = Path(__file__).parent / "templates"
-    __core_templates_files = [f"{name}.template.asp" for name in ["dumbo"]]
+    __core_templates_directory = Path(__file__).parent.parent / "templates"
+    __core_templates_files = [f"{name}.template.asp" for name in [
+        "dumbo",
+        "binary_relations",
+        "sets",
+        "graphs",
+    ]]
 
     @staticmethod
     def __init_core_templates():

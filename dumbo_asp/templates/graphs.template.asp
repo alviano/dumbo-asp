@@ -1,34 +1,3 @@
-%*
-*** TEMPLATES PRODUCED PROGRAMMATICALLY : BEGIN ***
-
-__template__("@dumbo/exact copy (arity {arity})").
-    output({terms}) :- input({terms}).
-    :- output({terms}), not input({terms}).
-__end__.
-
-__template__("@dumbo/collect arguments (arity {arity})").
-    output(X{index}) :- input({terms}).
-    ...
- __end__.
-
-__template__("@dumbo/collect argument {index} of {arity}").
-    output(X{index}) :- input({terms}).
-__end__.
-
-*** TEMPLATES PRODUCED PROGRAMMATICALLY : END ***
-*%
-
-
-__template__("@dumbo/symmetric closure").
-    closure(X,Y) :- relation(X,Y).
-    closure(X,Y) :- relation(Y,X).
-__end__.
-
-__template__("@dumbo/symmetric closure guaranteed").
-    __apply_template__("@dumbo/symmetric closure", (closure, __closure)).
-    __apply_template__("@dumbo/exact copy (arity 2)", (input, __closure), (output, closure)).
-__end__.
-
 __template__("@dumbo/reachable nodes").
     reach(X) :- start(X).
     reach(Y) :- reach(X), link(X,Y).
@@ -38,16 +7,6 @@ __template__("@dumbo/connected graph").
     __start(X) :- X = #min{Y : node(Y)}.
     __apply_template__("@dumbo/reachable nodes", (start, __start), (reach, __reach)).
     :- node(X), not __reach(X).
-__end__.
-
-__template__("@dumbo/transitive closure").
-    closure(X,Y) :- relation(X,Y).
-    closure(X,Z) :- closure(X,Y), relation(Y,Z).
-__end__.
-
-__template__("@dumbo/transitive closure guaranteed").
-    __apply_template__("@dumbo/transitive closure", (closure, __closure)).
-    __apply_template__("@dumbo/exact copy (arity 2)", (input, __closure), (output, closure)).
 __end__.
 
 __template__("@dumbo/spanning tree of undirected graph").
@@ -81,15 +40,4 @@ __template__("@dumbo/all simple directed paths of given length").
 
     path(P) :- __path(P), __path_length(P,L), length(L).
     in_path(N,P) :- path(P), __in_path(N,P).
-__end__.
-
-__template__("@dumbo/equal sets").
-    equals(S,S') :- set(S), set(S'), S < S';
-        in_set(X,S) : in_set(X,S');
-        in_set(X,S') : in_set(X,S).
-__end__.
-
-__template__("@dumbo/discard duplicate sets").
-    __apply_template__("@dumbo/equal sets", (equals, __equals)).
-    unique(S) :- set(S), not __equals(S,_).
 __end__.

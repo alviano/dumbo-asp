@@ -138,25 +138,6 @@ __tc_ebc40a28_de77_494a_a139_000000000004(X,Z) :- __tc_ebc40a28_de77_494a_a139_0
         Model.of_program(program)
 
 
-def test_template_for_tc_from_core_lib():
-    program = Template.expand_program(SymbolicProgram.parse("""
-link(a,b).
-link(b,a).
-__apply_template__("@dumbo/transitive closure", (relation, link), (closure, link)).
-    """.strip()))
-    assert Model.of_program(program) == Model.of_atoms("link(a,b) link(b,a) link(a,a) link(b,b)".split())
-
-
-def test_template_for_transitive_closure_guaranteed():
-    program = Template.expand_program(SymbolicProgram.parse("""
-link(a,b).
-link(b,a).
-__apply_template__("@dumbo/transitive closure guaranteed", (relation, link), (closure, link)).
-    """.strip()))
-    assert Model.of_program(program).filter(when=lambda atom: atom.predicate_name == "link") == \
-           Model.of_atoms("link(a,b) link(b,a) link(a,a) link(b,b)".split())
-
-
 def test_billion_laughs_attack():
     n = 4
     program = SymbolicProgram.parse(
@@ -166,75 +147,3 @@ def test_billion_laughs_attack():
         f"""\n__apply_template__("lol{n}").""")
     with pytest.raises(ValueError):
         Template.expand_program(program, limit=10)
-
-
-def test_spanning_tree():
-    program = SymbolicProgram.parse("""
-link(2,1).  
-link(2,3).
-__apply_template__("@dumbo/collect arguments (arity 2)", (input, link), (output, node)).
-__apply_template__("@dumbo/symmetric closure", (relation, link), (closure, link)).
-__apply_template__("@dumbo/spanning tree of undirected graph").
-    """)
-    program = Template.expand_program(program)
-    assert Model.of_program(program).filter(when=lambda atom: atom.predicate_name == "tree") == \
-           Model.of_atoms("tree(1,2) tree(2,3)".split())
-
-
-def test_all_simple_directed_paths():
-    program = SymbolicProgram.parse("""
-link(1,2).
-link(2,3).
-link(2,4).
-__apply_template__("@dumbo/collect arguments (arity 2)", (input, link), (output, node)).
-__apply_template__("@dumbo/all simple directed paths").
-    """)
-    program = Template.expand_program(program)
-    model = Model.of_program(program)
-    assert len(model.filter(when=lambda atom: atom.predicate_name == "path")) == 9
-
-
-def test_all_simple_directed_paths_of_given_max_length():
-    program = SymbolicProgram.parse("""
-link(1,2).
-link(2,3).
-link(2,4).
-max_length(2).
-__apply_template__("@dumbo/collect arguments (arity 2)", (input, link), (output, node)).
-__apply_template__("@dumbo/all simple directed paths").
-    """)
-    program = Template.expand_program(program)
-    model = Model.of_program(program)
-    assert len(model.filter(when=lambda atom: atom.predicate_name == "path")) == 9
-
-
-def test_all_simple_directed_paths_of_given_length():
-    program = SymbolicProgram.parse("""
-link(1,2).
-link(2,3).
-link(2,4).
-length(2).
-__apply_template__("@dumbo/collect arguments (arity 2)", (input, link), (output, node)).
-__apply_template__("@dumbo/all simple directed paths of given length").
-    """)
-    program = Template.expand_program(program)
-    model = Model.of_program(program)
-    assert len(model.filter(when=lambda atom: atom.predicate_name == "path")) == 2
-
-
-def test_discard_duplicate_sets():
-    program = SymbolicProgram.parse("""
-in_set(1,s1).
-in_set(2,s1).
-in_set(3,s1).
-in_set(1,s2).
-in_set(2,s2).
-in_set(3,s2).
-in_set(1,s3).
-in_set(2,s3).
-__apply_template__("@dumbo/collect argument 2 of 2", (input, in_set), (output, set)).
-__apply_template__("@dumbo/discard duplicate sets").
-    """)
-    program = Template.expand_program(program)
-    model = Model.of_program(program)
-    assert len(model.filter(when=lambda atom: atom.predicate_name == "unique")) == 2
