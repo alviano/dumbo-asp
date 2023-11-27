@@ -105,7 +105,10 @@ class Model:
             if built_element is not None:
                 flattened.append(built_element)
             else:
-                flattened.extend(build(atom) for atom in element)
+                for atom in element:
+                    built_element = build(atom)
+                    validate("is atom", built_element, help_msg=f"Failed to build atom from {element}")
+                    flattened.append(built_element)
         return Model(
             key=Model.__key,
             value=

@@ -7,6 +7,7 @@ import pytest
 from dumbo_asp.primitives.models import Model
 from dumbo_asp.primitives.parsers import Parser
 from dumbo_asp.primitives.predicates import Predicate
+from dumbo_asp.primitives.programs import SymbolicProgram
 
 
 @pytest.mark.parametrize("atoms", [
@@ -27,6 +28,11 @@ def test_valid_model_of_atoms(atoms):
 def test_invalid_model_of_atoms(atoms):
     with pytest.raises(ValueError):
         Model.of_atoms(atoms)
+
+
+def test_model_of_atoms_cannot_receive_a_program():
+    with pytest.raises(TypeError):
+        Model.of_atoms(SymbolicProgram.parse("a."))
 
 
 def test_model_of_empty_program():
