@@ -110,7 +110,8 @@ def test_rule_is_choice_rule():
 def test_rule_to_zero_simplification_version_choice_with_elements():
     rule = SymbolicRule.parse("1 <= %* comment *% {a(X)} :- b(X,Y).").to_zero_simplification_version()
     assert rule == SymbolicRule.parse(
-        '1 <= %* comment *% {__false__(("MSA8PSAlKiBjb21tZW50IColIHthKFgpfSA6LSBiKFgsWSku", ("X","Y")), (X,Y)); a(X)} '
+        '1 <= %* comment *% {__false__(("MSA8PSAlKiBjb21tZW50IColIHthKFgpfSA6LSBiKFgsWSku", ("X","Y")), (X,Y));\n'
+        '                    a(X)} '
         ':- b(X,Y).')
 
 

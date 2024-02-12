@@ -434,7 +434,9 @@ class SymbolicRule:
         if self.is_choice_rule:
             if self.__value.head.elements:
                 _, line, column = self.__value.head.elements[0].location.begin
-                return SymbolicRule.parse(utils.insert_in_parsed_string(f"{atom}; ", str(self), line, column))
+                return SymbolicRule.parse(
+                    utils.insert_in_parsed_string(f"{atom};\n{' ' * (column-1)}", str(self), line, column)
+                )
             s = str(self)
             index = 0
             while True:

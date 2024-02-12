@@ -281,7 +281,7 @@ __false__(("cChYKSA6LSBlKFgsWSku", ("X","Y")), (X,Y)) |
 p(X) :- e(X,Y).
 __false__(("ZShYLFkpIDotIFggPSAxMS4uMTMsIFkgPSAxMCAtIFgvMi4=", ("X","Y")), (X,Y)) |
 e(X,Y) :- X = 11..13, Y = 10 - X/2.
-a | b | c | d :- __false__.
+{a; b; c; d} :- __false__.
 {__false__}.
 :- #count{0 : __false__; RuleID, Substitution : __false__(RuleID, Substitution)} > 0.
     """.strip()

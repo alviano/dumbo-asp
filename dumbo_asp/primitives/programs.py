@@ -227,7 +227,7 @@ class SymbolicProgram:
         false_predicate = Predicate.false().name
         return SymbolicProgram.of(
             [rule.to_zero_simplification_version(compact=compact) for rule in self],
-            SymbolicRule.parse(' | '.join(str(atom) for atom in extra_atoms) + f" :- {false_predicate}.")
+            SymbolicRule.parse('{' + '; '.join(str(atom) for atom in extra_atoms) + f"}} :- {false_predicate}.")
             if extra_atoms else [],
             SymbolicRule.parse(f"{{{false_predicate}}}."),
             SymbolicRule.parse(f":- {false_predicate}.") if compact else
