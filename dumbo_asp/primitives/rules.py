@@ -268,7 +268,7 @@ class SymbolicRule:
         return self.parse(new_rule, self.disabled)
 
     def with_chopped_body(self, *,
-                          with_backward_search=False, backward_search_symbols=(';', ',', ':-')) -> "SymbolicRule":
+                          with_backward_search=False, backward_search_symbols=(';', ',', ' :-', ':-')) -> "SymbolicRule":
         validate("body", self.__value.body, min_len=1, help_msg="Cannot chop on empty body")
         the_rule = SymbolicRule.parse(str(self.__value)) if self.__parsed_string is None else self
         string = the_rule.__parsed_string

@@ -255,7 +255,7 @@ def pack_asp_chef_url(recipe: str, the_input: str | Model | Iterable[Model]) -> 
 
 @typeguard.typechecked
 def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
-                                 with_backward_search=False, backward_search_symbols=(';', ',', ':-')):
+                                 with_backward_search=False, backward_search_symbols=(';', ',', ' :-', ':-')):
     reason_map: Final = {
         "true": {
             "support": "support",
@@ -283,7 +283,7 @@ def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
             atom_to_rule[name] = node.arguments[2].arguments[1].string
             if with_chopped_body:
                 atom_to_rule[name] = str(SymbolicRule.parse(node.arguments[2].arguments[1].string).with_chopped_body(
-                    with_backward_search=True, backward_search_symbols=backward_search_symbols
+                    with_backward_search=with_backward_search, backward_search_symbols=backward_search_symbols
                 ))
         graph.add_vertex(name, label=f"{name}\n{reason_map[value][reason]}")
 
