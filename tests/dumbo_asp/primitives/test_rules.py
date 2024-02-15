@@ -1,5 +1,6 @@
 import clingo
 import pytest
+from dumbo_utils.validation import ValidationError
 
 from dumbo_asp.primitives.atoms import SymbolicAtom
 from dumbo_asp.primitives.models import Model
@@ -56,6 +57,21 @@ def test_symbolic_rule_with_extended_body():
            "a :- b; not c."
     assert str(SymbolicRule.parse(" a( X , Y ) . ").with_extended_body(SymbolicAtom.parse(" b( Z ) "))) == \
            " a( X , Y )  :- b( Z ). "
+
+
+def test_symbolic_rule_with_chopped_body():
+    assert str(SymbolicRule.parse("a :- b, c.").with_chopped_body()) == "a :- b."
+    assert str(SymbolicRule.parse("a :- b, not c.").with_chopped_body()) == "a :- b."
+    assert str(SymbolicRule.parse("a :- b.").with_chopped_body()) == "a."
+    with pytest.raises(ValidationError):
+        SymbolicRule.parse("a.").with_chopped_body()
+
+    assert str(SymbolicRule.parse("a :- b , c.").with_chopped_body(with_backward_search=True)) == "a :- b ."
+    assert str(SymbolicRule.parse("a :- b ; c.").with_chopped_body(with_backward_search=True)) == "a :- b ."
+    assert (str(SymbolicRule.parse("a :- b %* foo *%, c.").with_chopped_body(with_backward_search=True)) ==
+            "a :- b %* foo *%.")
+    assert str(SymbolicRule.parse("a :- b.").with_chopped_body(with_backward_search=True,
+                                                               backward_search_symbols=(' :-',))) == "a."
 
 
 def test_symbolic_rule_body_as_string():

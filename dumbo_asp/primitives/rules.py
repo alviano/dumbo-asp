@@ -18,7 +18,7 @@ from dumbo_asp.primitives.models import Model
 from dumbo_asp.primitives.parsers import Parser
 from dumbo_asp.primitives.predicates import Predicate
 from dumbo_asp.primitives.terms import SymbolicTerm
-from dumbo_asp.utils import uuid
+from dumbo_asp.utils import uuid, extract_parsed_string
 
 
 @typeguard.typechecked
@@ -265,6 +265,31 @@ class SymbolicRule:
         new_rule = utils.insert_in_parsed_string(
             f"; {literal}" if len(self.__value.body) > 0 else f" :- {literal}", string, line, column
         )
+        return self.parse(new_rule, self.disabled)
+
+    def with_chopped_body(self, *,
+                          with_backward_search=False, backward_search_symbols=(';', ',', ':-')) -> "SymbolicRule":
+        validate("body", self.__value.body, min_len=1, help_msg="Cannot chop on empty body")
+        the_rule = SymbolicRule.parse(str(self.__value)) if self.__parsed_string is None else self
+        string = the_rule.__parsed_string
+        body = the_rule.__value.body
+        if len(body) == 1:
+            begin = the_rule.__value.head.location.end
+        else:
+            begin = body[-2].location.end
+        location = clingo.ast.Location(begin, body[-1].location.end)
+
+        def backward_search():
+            res = extract_parsed_string(string, clingo.ast.Location(begin, body[-1].location.begin))
+            while True:
+                for symbol in backward_search_symbols:
+                    if res.endswith(symbol):
+                        return res[:-len(symbol)]
+                validate("backward search", res, min_len=1,
+                         help_msg="Backward search failure! Specify a different symbol")
+                res = res[:-1]
+
+        new_rule = utils.replace_in_parsed_string(string, location, backward_search() if with_backward_search else "")
         return self.parse(new_rule, self.disabled)
 
     def body_as_string(self, separator: str = "; ") -> str:
