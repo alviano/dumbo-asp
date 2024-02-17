@@ -323,7 +323,7 @@ def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
         ],
     }
     url = "https://xasp-navigator.netlify.app/#"
-    # url = "http://localhost:5173/#"
+    url = "http://localhost:5173/#"
     json_dump = json.dumps(res, separators=(',', ':')).encode()
     url += base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
     webbrowser.open(url, new=0, autoraise=True)
@@ -367,8 +367,8 @@ def __explanation_graph_pus_program(
             query_atoms.remove(atom)
         else:
             constraints.append(SymbolicRule.parse(
-                f":- not {atom}; {pus_predicate}(answer_set,{len(constraints)})." if atom in answer_set_atoms else
-                f":-     {atom}; {pus_predicate}(answer_set,{len(constraints)})."
+                f":- not {atom} %* assumption *%; {pus_predicate}(answer_set,{len(constraints)})." if atom in answer_set_atoms else
+                f":-     {atom} %* assumption *%; {pus_predicate}(answer_set,{len(constraints)})."
             ))
     for atom in query_atoms:
         query_literals.append(f"not {atom}")
@@ -511,7 +511,7 @@ def explanation_graph(
             atom = GroundAtom(at)
             if atom.predicate_name == "node":
                 reason = atom.arguments[2]
-                if re.search(pattern, reason.arguments[1].string):
+                if len(reason.arguments) > 1 and re.search(pattern, reason.arguments[1].string):
                     atom = GroundAtom.parse(f"node({atom.arguments[0]},{atom.arguments[1]},(assumption,))")
             res.append(atom)
 
@@ -738,60 +738,60 @@ assign(0,true,0) :- #false.
 """
 
 META_EXPLANATION_GRAPH = """
-link(Atom, BodyAtom) :-
+link(Atom, BodyAtom, Rule) :-
   assign(Atom, _, (support, Rule));
   pos_body(Rule, BodyAtom).
-link(Atom, BodyAtom) :-
+link(Atom, BodyAtom, Rule) :-
   assign(Atom, _, (support, Rule));
   neg_body(Rule, BodyAtom).
-link(Atom, FalseHeadAtom) :-
+link(Atom, FalseHeadAtom, Rule) :-
   assign(Atom, _, (support, Rule));
   head(Rule, FalseHeadAtom), assign(FalseHeadAtom, false, _).
 
-link(Atom, BodyAtom) :-
+link(Atom, BodyAtom, Rule) :-
   assign(Atom, _, (head_upper_bound, Rule));
   pos_body(Rule, BodyAtom).
-link(Atom, BodyAtom) :-
+link(Atom, BodyAtom, Rule) :-
   assign(Atom, _, (head_upper_bound, Rule));
   neg_body(Rule, BodyAtom).
-link(Atom, TrueHeadAtom) :-
+link(Atom, TrueHeadAtom, Rule) :-
   assign(Atom, _, (head_upper_bound, Rule));
   head(Rule, TrueHeadAtom), assign(TrueHeadAtom, true, _).
 
-link_label(Atom, BecauseOfAtom, Rule) :-
+link(Atom, BecauseOfAtom, Rule) :-
   assign(Atom, _, (lack_of_support,));
   head(Rule, Atom), cannot_support(Rule, Atom, BecauseOfAtom).
-link(Atom, BecauseOfAtom) :- link_label(Atom, BecauseOfAtom, Rule).
 
-link(Atom, AtomToSupport) :-
+link(Atom, AtomToSupport, Rule) :-
   assign(Atom, _, (last_support, Rule, AtomToSupport)).
-link(Atom, BecauseOfAtom) :-
+link(Atom, BecauseOfAtom, Rule) :-
   assign(Atom, _, (last_support, Rule, AtomToSupport));
   cannot_support(Rule, AtomToSupport, BecauseOfAtom).
 
-link(Atom, TrueHeadAtom) :-
+link(Atom, TrueHeadAtom, Rule) :-
   assign(Atom, _, (constraint, Rule, upper_bound));
   head(Rule, TrueHeadAtom), assign(TrueHeadAtom, true, _).
-link(Atom, FalseHeadAtom) :-
+link(Atom, FalseHeadAtom, Rule) :-
   assign(Atom, _, (constraint, Rule, lower_bound));
   head(Rule, FalseHeadAtom), assign(FalseHeadAtom, false, _).
-link(Atom, BodyAtom) :-
+link(Atom, BodyAtom, Rule) :-
   assign(Atom, _, (constraint, Rule, _));
   pos_body(Rule, BodyAtom), BodyAtom != Atom.
-link(Atom, BodyAtom) :-
+link(Atom, BodyAtom, Rule) :-
   assign(Atom, _, (constraint, Rule, _));
   neg_body(Rule, BodyAtom), BodyAtom != Atom.
 
 
 reach(Atom) :- query(Atom).
-reach(Atom') :- reach(Atom), link(Atom, Atom'), not hide(Atom').
+reach(Atom') :- reach(Atom), link(Atom, Atom', _), not hide(Atom').
 hide(Atom) :- head(Rule, Atom); not pos_body(Rule,_); not neg_body(Rule,_).
 
 #show.
-#show node(X,V,R) : assign(X,V,R), reach(X), link(X,Y).
-#show node(X,V,R) : assign(X,V,R), reach(X), R = (lack_of_support,).
-#show link(X,Y) : link(X,Y), not link_label(X,Y,_), reach(X), reach(Y).
-#show link(X,Y,L) : link_label(X,Y,L), reach(X), reach(Y).
+#show node(X,V,R) : assign(X,V,R), reach(X).
+#show link(X,Y,R) : link(X,Y,R), reach(X), reach(Y).
+#show link(X,X,R) : assign(X,V,(I,R)), reach(X), I != support, not reach(Y) : link(X,Y,_).
+#show link(X,X,R) : assign(X,V,(constraint,R,_)), reach(X), not reach(Y) : link(X,Y,_).
+#show link(X,X,"__in_no_head__ :- __pus__.") : assign(X,V,(lack_of_support,)), reach(X), not reach(Y) : link(X,Y,_).
 
 % avoid warnings
 head(0,0) :- #false.
