@@ -7,7 +7,7 @@ from dumbo_asp.primitives.programs import SymbolicProgram
 from dumbo_asp.primitives.templates import Template
 from dumbo_asp.queries import compute_minimal_unsatisfiable_subsets, validate_in_all_models, \
     validate_cannot_be_true_in_any_stable_model, validate_cannot_be_extended_to_stable_model, enumerate_models, \
-    enumerate_counter_models, validate_in_all_models_of_the_reduct
+    enumerate_counter_models, validate_in_all_models_of_the_reduct, explanation_graph
 
 
 def test_compute_minimal_unsatisfiable_subsets():
@@ -175,3 +175,66 @@ __fail :- not a, not b, not __fail.
 
     validate_cannot_be_extended_to_stable_model(program=program, true_atoms=Model.of_atoms("a b".split()))
     validate_cannot_be_extended_to_stable_model(program=program, false_atoms=Model.of_atoms("a b".split()))
+
+
+def test_explanation_graph_support():
+    program = SymbolicProgram.parse("noo :- a. a :- b. b.")
+    answer_set = Model.of_program("b. a.")
+    herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b", "noo"]]
+    query = Model.of_program("a.")
+    graph = explanation_graph(program, answer_set, herbrand_base, query)
+    assert len(graph) == 3
+    assert '"a",true,(support,"a :- b' in graph.as_facts
+    assert '"b",true,(support,"b :- ' in graph.as_facts
+    assert 'link("a","b")' in graph.as_facts
+
+
+def test_explanation_graph_head_upper_bound():
+    program = SymbolicProgram.parse("{a; b} <= 1.")
+    answer_set = Model.of_atoms("b")
+    herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b"]]
+    query = Model.of_program("a.")
+    graph = explanation_graph(program, answer_set, herbrand_base, query)
+    assert len(graph) == 3
+    assert '"a",false,(head_upper_bound' in graph.as_facts
+    assert '"b",true,(assumption' in graph.as_facts
+    assert 'link("a","b")' in graph.as_facts
+
+
+def test_explanation_graph_lack_of_support():
+    program = SymbolicProgram.parse("a :- b.")
+    answer_set = Model.empty()
+    herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b"]]
+    query = Model.of_program("a.")
+    graph = explanation_graph(program, answer_set, herbrand_base, query)
+    assert len(graph) == 3
+    assert '"a",false,(lack_of_support,' in graph.as_facts
+    assert '"b",false,(lack_of_support,' in graph.as_facts
+    assert 'link("a","b","a :- b' in graph.as_facts
+    # assert False
+    # open_graph_in_xasp_navigator(graph, with_chopped_body=True, with_backward_search=True,
+    #                              backward_search_symbols=(';', ' :-'))
+
+
+def test_explanation_graph_last_support():
+    program = SymbolicProgram.parse("a :- b. :- not a. {b}.")
+    answer_set = Model.of_program("b.")
+    herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b"]]
+    query = Model.of_program("b.")
+    graph = explanation_graph(program, answer_set, herbrand_base, query)
+    assert len(graph) == 3
+    assert '"a",true,(constraint,' in graph.as_facts
+    assert '"b",true,(last_support,' in graph.as_facts
+    assert 'link("b","a")' in graph.as_facts
+
+
+def test_explanation_graph_constraint():
+    program = SymbolicProgram.parse("a :- not b. :- a. {a; b}.")
+    answer_set = Model.of_program("b.")
+    herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b"]]
+    query = Model.of_program("b.")
+    graph = explanation_graph(program, answer_set, herbrand_base, query)
+    assert len(graph) == 3
+    assert '"a",false,(constraint,' in graph.as_facts
+    assert '"b",true,(constraint,' in graph.as_facts
+    assert 'link("b","a")' in graph.as_facts

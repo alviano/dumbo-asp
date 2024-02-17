@@ -1,10 +1,11 @@
 import base64
 import json
+import re
 import subprocess
 import webbrowser
 import zlib
 from pathlib import Path
-from typing import Final, Iterable
+from typing import Final, Iterable, Sequence
 
 import clingo
 import igraph
@@ -17,6 +18,7 @@ from dumbo_utils.validation import validate
 from dumbo_asp import utils
 from dumbo_asp.primitives.atoms import GroundAtom, SymbolicAtom
 from dumbo_asp.primitives.models import Model
+from dumbo_asp.primitives.predicates import Predicate
 from dumbo_asp.primitives.programs import SymbolicProgram
 from dumbo_asp.primitives.rules import SymbolicRule
 from dumbo_asp.primitives.terms import SymbolicTerm
@@ -258,11 +260,13 @@ def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
                                  with_backward_search=False, backward_search_symbols=(';', ',', ' :-', ':-')):
     reason_map: Final = {
         "true": {
+            "assumption": "true assumption",
             "support": "support",
             "constraint": "required true to falsify body",
             "last support": "required true to satisfy body of last supporting rule",
         },
         "false": {
+            "assumption": "false assumption",
             "lack of support": "lack of support",
             "choice": "required false to satisfy choice rule upper bound",
             "head upper bound": "required false to satisfy choice rule upper bound",
@@ -290,7 +294,11 @@ def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
     for link in graph_model.filter(when=lambda atom: atom.predicate_name == "link"):
         source = link.arguments[0].string
         target = link.arguments[1].string
-        label = atom_to_rule[source]
+        label = str(
+            SymbolicRule.parse(link.arguments[2].string).with_chopped_body(
+                with_backward_search=with_backward_search, backward_search_symbols=backward_search_symbols
+            )
+        ) if len(link.arguments) > 2 else atom_to_rule[source]
         graph.add_edge(source, target, label=label)
 
     # layout = graph.layout_sugiyama()
@@ -319,6 +327,197 @@ def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
     json_dump = json.dumps(res, separators=(',', ':')).encode()
     url += base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
     webbrowser.open(url, new=0, autoraise=True)
+
+
+def __explanation_graph_trim_selectors(
+    control: clingo.Control,
+    selectors: list[GroundAtom],
+    selector_to_literal: dict[GroundAtom, int],
+) -> None:
+    def on_core(core):
+        on_core.res = core
+
+    on_core.res = []
+    control.solve(
+        assumptions=[selector_to_literal[selector] for selector in selectors]
+        + [-1],
+        on_core=on_core,
+    )
+    if on_core.res is not None and (len(on_core.res) == 0 or on_core.res[-1] != -1):
+        while selectors and selector_to_literal[selectors[-1]] not in on_core.res:
+            selectors.pop()
+    else:
+        selectors.clear()
+
+
+def __explanation_graph_pus_program(
+        program: SymbolicProgram,
+        answer_set: Model,
+        herbrand_base: Iterable[GroundAtom],
+        query: Model,
+        pus_predicate: str,
+):
+    query_atoms = set(query)
+    answer_set_atoms = set(answer_set)
+    query_literals = []
+    constraints = []
+    for atom in herbrand_base:
+        if atom in query_atoms:
+            query_literals.append(str(atom) if atom in answer_set_atoms else f"not {atom}")
+            query_atoms.remove(atom)
+        else:
+            constraints.append(SymbolicRule.parse(
+                f":- not {atom}; {pus_predicate}(answer_set,{len(constraints)})." if atom in answer_set_atoms else
+                f":-     {atom}; {pus_predicate}(answer_set,{len(constraints)})."
+            ))
+    for atom in query_atoms:
+        query_literals.append(f"not {atom}")
+
+    false: Final = Predicate.false().name
+    return SymbolicProgram.of(
+        *(rule.with_extended_body(SymbolicAtom.parse(f"{pus_predicate}(program,{index})"))
+          for index, rule in enumerate(program)),
+        *constraints,
+        SymbolicRule.parse(f"{pus_predicate} :- {', '.join(query_literals)}."),
+        SymbolicRule.parse(
+            "{"
+            + f"{pus_predicate}(program,0..{len(program) - 1})"
+            + (
+                f"; {pus_predicate}(answer_set,0..{len(constraints) - 1})"
+                if len(constraints) > 0
+                else ""
+            )
+            + "}."
+        ),
+        # something from to_zero_simplification_version() to make the grounder less intelligent
+        SymbolicRule.parse('{' + '; '.join(str(atom) for atom in herbrand_base) + f"}} :- {false}."),
+        SymbolicRule.parse(f"{{{false}}}."),
+        SymbolicRule.parse(f":- {false}."),
+    )
+
+
+def __explanation_graph_expanded_program(
+        pus_program: SymbolicProgram,
+        herbrand_base: Iterable[GroundAtom],
+        all_selectors: Iterable[GroundAtom],
+        pus_predicate: str,
+):
+    control = clingo.Control(["--supp-models", "--no-ufs-check", "--sat-prepro=no", "--eq=0", "--no-backprop"])
+    control.add(str(pus_program))
+    control.ground([("base", [])])
+    selector_to_literal = {}
+    literal_to_selector = {}
+    for atom in control.symbolic_atoms.by_signature(pus_predicate, 2):
+        selector = GroundAtom.parse(str(atom.symbol))
+        selector_to_literal[selector] = atom.literal
+        literal_to_selector[atom.literal] = selector
+
+    class Stopper(clingo.Propagator):
+        def init(self, init):
+            program_literal = init.symbolic_atoms[clingo.Function(pus_predicate)].literal
+            init.add_watch(init.solver_literal(program_literal))
+
+        def propagate(self, ctl: clingo.PropagateControl, changes: Sequence[int]) -> None:
+            ctl.add_clause(clause=[-changes[0]], tag=True)
+
+    control.register_propagator(Stopper())
+    selectors = list(all_selectors)
+    __explanation_graph_trim_selectors(
+        control=control,
+        selectors=selectors,
+        selector_to_literal=selector_to_literal,
+    )
+
+    required_selectors = 0
+    while required_selectors < len(selectors):
+        required_selectors += 1
+        selectors.insert(
+            0, selectors.pop()
+        )  # last selector is required... move it ahead
+        __explanation_graph_trim_selectors(
+            control=control,
+            selectors=selectors,
+            selector_to_literal=selector_to_literal,
+        )
+
+    herbrand_base = Model.of_atoms(*herbrand_base, *all_selectors)
+    return SymbolicProgram.of(
+        *(rule for index, rule in enumerate(pus_program) if index < len(pus_program) - 3),  # last three rules are from to_zero_simplification_version()
+        *(SymbolicRule.parse(f"{atom}.") for atom in selectors)
+    ).expand_global_and_local_variables(herbrand_base=herbrand_base)
+
+
+def explanation_graph(
+        program: SymbolicProgram,
+        answer_set: Model,
+        herbrand_base: Iterable[GroundAtom],
+        query: Model,
+) -> Model:
+    pus_predicate: Final = f"__pus__"
+    pus_program = __explanation_graph_pus_program(program, answer_set, herbrand_base, query, pus_predicate)
+    selectors = [
+        GroundAtom.parse(f"{pus_predicate}(program,{index})")
+        for index in range(len(program))
+    ] + [
+        GroundAtom.parse(f"{pus_predicate}(answer_set,{index})")
+        for index in range(len(pus_program) - len(program) - 5)
+        # the extended program contains modified original rules, 5 extra rules, and constraints for the answer set
+    ]
+    expanded_program = __explanation_graph_expanded_program(pus_program, herbrand_base, selectors, pus_predicate)
+
+    serialization = Model.of_atoms(
+        *expanded_program.serialize(base64_encode=False),
+        *(GroundAtom.parse(f'query({clingo.String(str(query_atom))})') for query_atom in query),
+    )
+
+    seen = set()
+    sequence = []
+    terminate = []
+
+    def collect(model):
+        for at in model.symbols(shown=True):
+            atom = GroundAtom(at)
+            if atom.predicate_name in ["assign", "constraint"]:
+                key = (atom.predicate_name, atom.arguments[0])
+            elif atom.predicate_name == "cannot_support":
+                key = (atom.predicate_name, atom.arguments[0], atom.arguments[1])
+            elif atom.predicate_name == "done":
+                terminate.append(True)
+                continue
+            else:
+                assert False
+            if key not in seen:
+                seen.add(key)
+                sequence.append(atom)
+
+    def search(meta, callback):
+        control = clingo.Control(["1", "--solve-limit=1"])
+        control.add("base", [], meta)
+        control.add("base", [], serialization.as_facts)
+        control.add("base", [], '\n'.join(f"{atom}." for atom in sequence))
+        control.ground([("base", [])])
+        callback(control)
+
+    while not terminate:
+        previous_len = len(sequence)
+        search(META_DERIVATION_SEQUENCE, lambda control: control.solve(on_model=collect))
+        assert len(sequence) > previous_len
+
+    res = []
+    pattern = re.compile(r'__pus__\(answer_set,\d+\)\.$')
+
+    def rewrite_links(model):
+        for at in model.symbols(shown=True):
+            atom = GroundAtom(at)
+            if atom.predicate_name == "node":
+                reason = atom.arguments[2]
+                if re.search(pattern, reason.arguments[1].string):
+                    atom = GroundAtom.parse(f"node({atom.arguments[0]},{atom.arguments[1]},(assumption,))")
+            res.append(atom)
+
+    search(META_EXPLANATION_GRAPH, lambda control: control.solve(on_model=rewrite_links))
+    res = Model.of_atoms(res)
+    return res
 
 
 META_MODELS = """
@@ -455,4 +654,150 @@ literal_tuple(0,0) :- #false.
 weighted_literal_tuple(0,0) :- #false.
 weighted_literal_tuple(0,0,0) :- #false.
 rule(0,0) :- #false.
+"""
+
+META_DERIVATION_SEQUENCE = """
+head_bounds(Rule, LowerBound, UpperBound) :-
+  rule(Rule), choice(Rule, LowerBound, UpperBound).
+head_bounds(Rule, 1, Size) :-
+  rule(Rule), not choice(Rule,_,_);
+  Size = #count{HeadAtom : head(Rule, HeadAtom)}.
+
+atom(Atom) :- head(Rule, Atom).
+atom(Atom) :- pos_body(Rule, Atom).
+atom(Atom) :- neg_body(Rule, Atom).
+
+assign'(HeadAtom, true, (support, Rule)) :-
+  rule(Rule), head_bounds(Rule, LowerBound, UpperBound);
+  head(Rule, HeadAtom), #sum{1, Atom : head(Rule, Atom); -1, Atom : head(Rule, Atom), assign(Atom, false, _)} = LowerBound;
+  assign(BodyAtom, true, _) : pos_body(Rule, BodyAtom);
+  assign(BodyAtom, false, _) : neg_body(Rule, BodyAtom).
+
+assign'(HeadAtom, false, (head_upper_bound, Rule)) :-
+  rule(Rule), head_bounds(Rule, LowerBound, UpperBound);
+  head(Rule, HeadAtom), #count{Atom : head(Rule, Atom), assign(Atom, true, _), Atom != HeadAtom} = UpperBound;
+  assign(BodyAtom, true, _) : pos_body(Rule, BodyAtom);
+  assign(BodyAtom, false, _) : neg_body(Rule, BodyAtom).
+
+cannot_support(Rule, HeadAtom, OtherHeadAtom) :-
+  rule(Rule), head(Rule, HeadAtom), not choice(Rule,_,_);
+  head(Rule, OtherHeadAtom), OtherHeadAtom != HeadAtom, assign(OtherHeadAtom, true, _).
+cannot_support(Rule, HeadAtom, BodyAtom) :-
+  rule(Rule), head(Rule, HeadAtom);
+  pos_body(Rule, BodyAtom), assign(BodyAtom, false, _).
+cannot_support(Rule, HeadAtom, BodyAtom) :-
+  rule(Rule), head(Rule, HeadAtom);
+  neg_body(Rule, BodyAtom), assign(BodyAtom, true, _).
+
+assign'(Atom, false, (lack_of_support,)) :-
+  atom(Atom);
+  cannot_support(Rule, Atom, _) : head(Rule, Atom).
+
+last_support(Rule, Atom) :-
+  assign(Atom, true, _), head(Rule, Atom);
+  cannot_support(Rule', Atom, _) : head(Rule', Atom), Rule' != Rule.
+  
+assign'(BodyAtom, true, (last_support, Rule, Atom)) :-
+  last_support(Rule, Atom);
+  pos_body(Rule, BodyAtom).
+assign'(BodyAtom, false, (last_support, Rule, Atom)) :-
+  last_support(Rule, Atom);
+  neg_body(Rule, BodyAtom).
+assign'(HeadAtom, false, (last_support, Rule, Atom)) :-
+  last_support(Rule, Atom), not choice(Rule, _, _);
+  head(Rule, HeadAtom), HeadAtom != Atom.
+
+constraint(Rule, upper_bound) :-
+  rule(Rule), head_bounds(Rule, LowerBound, UpperBound);
+  #count{Atom : head(Rule, Atom), assign(Atom, true, _)} > UpperBound.
+constraint(Rule, lower_bound) :-
+  rule(Rule), head_bounds(Rule, LowerBound, UpperBound);
+  #sum{1, Atom : head(Rule, Atom); -1, Atom : head(Rule, Atom), assign(Atom, false, _)} < LowerBound.
+
+assign'(Atom, false, (constraint, Rule, Bound)) :-
+  constraint(Rule, Bound), pos_body(Rule, Atom);
+  assign(Atom', true, _) : pos_body(Rule, Atom'), Atom' != Atom;
+  assign(Atom', false, _) : neg_body(Rule,Atom').
+assign'(Atom, true, (constraint, Rule, Bound)) :-
+  constraint(Rule, Bound), neg_body(Rule, Atom);
+  assign(Atom', true, _) : pos_body(Rule, Atom');
+  assign(Atom', false, _) : neg_body(Rule,Atom'), Atom' != Atom.
+  
+#show.
+#show assign(Atom, Value, Reason) : assign'(Atom, Value, Reason), not assign(Atom, _, _).
+#show cannot_support/3.
+#show constraint/2.
+#show done : #count{Atom : query(Atom), not assign'(Atom, _, _)} == 0.
+
+% avoid warnings
+head(0,0) :- #false.
+pos_body(0,0) :- #false.
+neg_body(0,0) :- #false.
+assign(0,false,0) :- #false.
+assign(0,true,0) :- #false.
+"""
+
+META_EXPLANATION_GRAPH = """
+link(Atom, BodyAtom) :-
+  assign(Atom, _, (support, Rule));
+  pos_body(Rule, BodyAtom).
+link(Atom, BodyAtom) :-
+  assign(Atom, _, (support, Rule));
+  neg_body(Rule, BodyAtom).
+link(Atom, FalseHeadAtom) :-
+  assign(Atom, _, (support, Rule));
+  head(Rule, FalseHeadAtom), assign(FalseHeadAtom, false, _).
+
+link(Atom, BodyAtom) :-
+  assign(Atom, _, (head_upper_bound, Rule));
+  pos_body(Rule, BodyAtom).
+link(Atom, BodyAtom) :-
+  assign(Atom, _, (head_upper_bound, Rule));
+  neg_body(Rule, BodyAtom).
+link(Atom, TrueHeadAtom) :-
+  assign(Atom, _, (head_upper_bound, Rule));
+  head(Rule, TrueHeadAtom), assign(TrueHeadAtom, true, _).
+
+link_label(Atom, BecauseOfAtom, Rule) :-
+  assign(Atom, _, (lack_of_support,));
+  head(Rule, Atom), cannot_support(Rule, Atom, BecauseOfAtom).
+link(Atom, BecauseOfAtom) :- link_label(Atom, BecauseOfAtom, Rule).
+
+link(Atom, AtomToSupport) :-
+  assign(Atom, _, (last_support, Rule, AtomToSupport)).
+link(Atom, BecauseOfAtom) :-
+  assign(Atom, _, (last_support, Rule, AtomToSupport));
+  cannot_support(Rule, AtomToSupport, BecauseOfAtom).
+
+link(Atom, TrueHeadAtom) :-
+  assign(Atom, _, (constraint, Rule, upper_bound));
+  head(Rule, TrueHeadAtom), assign(TrueHeadAtom, true, _).
+link(Atom, FalseHeadAtom) :-
+  assign(Atom, _, (constraint, Rule, lower_bound));
+  head(Rule, FalseHeadAtom), assign(FalseHeadAtom, false, _).
+link(Atom, BodyAtom) :-
+  assign(Atom, _, (constraint, Rule, _));
+  pos_body(Rule, BodyAtom), BodyAtom != Atom.
+link(Atom, BodyAtom) :-
+  assign(Atom, _, (constraint, Rule, _));
+  neg_body(Rule, BodyAtom), BodyAtom != Atom.
+
+
+reach(Atom) :- query(Atom).
+reach(Atom') :- reach(Atom), link(Atom, Atom'), not hide(Atom').
+hide(Atom) :- head(Rule, Atom); not pos_body(Rule,_); not neg_body(Rule,_).
+
+#show.
+#show node(X,V,R) : assign(X,V,R), reach(X), link(X,Y).
+#show node(X,V,R) : assign(X,V,R), reach(X), R = (lack_of_support,).
+#show link(X,Y) : link(X,Y), not link_label(X,Y,_), reach(X), reach(Y).
+#show link(X,Y,L) : link_label(X,Y,L), reach(X), reach(Y).
+
+% avoid warnings
+head(0,0) :- #false.
+pos_body(0,0) :- #false.
+neg_body(0,0) :- #false.
+assign(0,0,0) :- #false.
+constraint(0,0) :- #false.
+cannot_support(0,0,0) :- #false.
 """
