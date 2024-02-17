@@ -323,7 +323,7 @@ def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
         ],
     }
     url = "https://xasp-navigator.netlify.app/#"
-    url = "http://localhost:5173/#"
+    # url = "http://localhost:5173/#"
     json_dump = json.dumps(res, separators=(',', ':')).encode()
     url += base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
     webbrowser.open(url, new=0, autoraise=True)
