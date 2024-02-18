@@ -256,8 +256,8 @@ def pack_asp_chef_url(recipe: str, the_input: str | Model | Iterable[Model]) -> 
 
 
 @typeguard.typechecked
-def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
-                                 with_backward_search=False, backward_search_symbols=(';', ',', ' :-', ':-')):
+def pack_xasp_navigator_url(graph_model: Model, *, with_chopped_body=False, with_backward_search=False,
+                            backward_search_symbols=(';', ',', ' :-', ':-')):
     reason_map: Final = {
         "true": {
             "assumption": "true assumption",
@@ -326,6 +326,16 @@ def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
     # url = "http://localhost:5173/#"
     json_dump = json.dumps(res, separators=(',', ':')).encode()
     url += base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
+
+
+def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
+                                 with_backward_search=False, backward_search_symbols=(';', ',', ' :-', ':-')):
+    url = pack_xasp_navigator_url(
+        graph_model,
+        with_chopped_body=with_chopped_body,
+        with_backward_search=with_backward_search,
+        backward_search_symbols=backward_search_symbols
+    )
     webbrowser.open(url, new=0, autoraise=True)
 
 
