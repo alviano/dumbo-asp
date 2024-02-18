@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dumbo-asp"
-version = "0.2.4"
+version = "0.2.5"
 description = "Utilities for Answer Set Programming"
 authors = ["Mario Alviano <mario.alviano@gmail.com>"]
 
@@ -11,7 +11,7 @@ igraph = "^0.11.3"
 cairocffi = "^1.6.0"
 Pillow = "^9.3.0"
 dumbo-utils = "^0.1.8"
-clingo = "^5.6.2"
+clingo = "^5.7.1"
 distlib = "^0.3.7"
 clingox = "^1.2.0"
 
