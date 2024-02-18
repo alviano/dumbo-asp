@@ -447,6 +447,7 @@ def __explanation_graph_expanded_program(
     ).expand_global_and_local_variables(herbrand_base=herbrand_base)
 
 
+@typeguard.typechecked
 def explanation_graph(
         program: SymbolicProgram,
         answer_set: Model,

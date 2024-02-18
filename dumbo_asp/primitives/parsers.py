@@ -88,8 +88,9 @@ class Parser:
             validate("nonempty res", callback.res, min_len=1)
             validate("base program", callback.res[0].ast_type == clingo.ast.ASTType.Program and
                      callback.res[0].name == "base" and len(callback.res[0].parameters) == 0, equals=True)
-            validate("only rules", [x for x in callback.res[1:] if x.ast_type != clingo.ast.ASTType.Rule], empty=True)
-            return callback.res[1:]
+            res = [x for x in callback.res[1:] if x.ast_type != clingo.ast.ASTType.Comment]
+            validate("only rules", [x for x in res if x.ast_type != clingo.ast.ASTType.Rule], empty=True)
+            return res
         except RuntimeError:
             errors = [message[1] for message in messages if message[0] == clingo.MessageCode.RuntimeError]
             validate("errors", messages, length=1)
