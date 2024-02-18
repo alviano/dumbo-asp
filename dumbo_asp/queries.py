@@ -323,7 +323,7 @@ def pack_xasp_navigator_url(graph_model: Model, *, with_chopped_body=False, with
         ],
     }
     json_dump = json.dumps(res, separators=(',', ':')).encode()
-    url = "https://xasp-navigator.netlify.app/#"
+    url = "https://xasp-navigator.alviano.net/#"
     # url = "http://localhost:5173/#"
     return url + base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
 
