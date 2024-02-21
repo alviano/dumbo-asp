@@ -153,7 +153,7 @@ given((8, 9), 8).
 given((9, 7), 7).
 given((9, 8), 1).
     """)
-    program = program.move_up(SymbolicAtom.parse("""
+    program = program.move_before(SymbolicAtom.parse("""
 given((7, Col), Value)
     """))
     assert program[0] == SymbolicRule.parse("given((7, 3), 4).")

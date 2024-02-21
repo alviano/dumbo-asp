@@ -207,7 +207,7 @@ class SymbolicProgram:
                 rules.append(rule)
         return SymbolicProgram.of(rules)
 
-    def move_up(self, *pattern: SymbolicAtom) -> "SymbolicProgram":
+    def move_before(self, *pattern: SymbolicAtom) -> "SymbolicProgram":
         def key(rule: SymbolicRule):
             return 0 if rule.match(*pattern) else 1
         return SymbolicProgram.of(sorted([rule for rule in self.__rules], key=key))

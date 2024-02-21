@@ -1,23 +1,23 @@
 [tool.poetry]
 name = "dumbo-asp"
-version = "0.2.6"
+version = "0.2.7"
 description = "Utilities for Answer Set Programming"
 authors = ["Mario Alviano <mario.alviano@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 dateutils = "^0.6.12"
 igraph = "^0.11.3"
 cairocffi = "^1.6.0"
 Pillow = "^9.3.0"
-dumbo-utils = "^0.1.8"
+dumbo-utils = "^0.3.1"
 clingo = "^5.7.1"
 distlib = "^0.3.7"
 clingox = "^1.2.0"
 
 [tool.poetry.dev-dependencies]
 coverage = "^7.2.7"
-pytest = "^7.4.0"
+pytest = "^8.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
