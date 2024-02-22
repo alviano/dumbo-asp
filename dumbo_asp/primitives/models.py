@@ -19,6 +19,7 @@ from dumbo_asp.utils import uuid
 @dataclasses.dataclass(frozen=True, order=True)
 class Model:
     value: tuple[GroundAtom | int | str, ...]
+    is_sorted: bool
 
     key: InitVar[PrivateKey]
     __key = PrivateKey()
@@ -33,15 +34,15 @@ class Model:
 
     @staticmethod
     def empty():
-        return Model(key=Model.__key, value=())
+        return Model(key=Model.__key, value=(), is_sorted=True)
 
     @staticmethod
-    def of_control(control: clingo.Control) -> "Model":
+    def of_control(control: clingo.Control, *, sort: bool = True) -> "Model":
         def on_model(model):
             if on_model.cost is not None and on_model.cost <= model.cost:
                 on_model.exception = True
             on_model.cost = model.cost
-            on_model.res = Model.of_elements(model.symbols(shown=True))
+            on_model.res = Model.of_elements(model.symbols(shown=True), sort=sort)
         on_model.cost = None
         on_model.res = None
         on_model.exception = False
@@ -54,7 +55,7 @@ class Model:
         return on_model.res
 
     @staticmethod
-    def of_program(*args: Any | Iterable[Any]) -> "Model":
+    def of_program(*args: Any | Iterable[Any], sort: bool = True) -> "Model":
         program = []
 
         for arg in args:
@@ -68,35 +69,39 @@ class Model:
         control = clingo.Control()
         control.add('\n'.join(program))
         control.ground([("base", [])])
-        return Model.of_control(control)
+        return Model.of_control(control, sort=sort)
 
     @staticmethod
-    def of_atoms(*args: Union[str, clingo.Symbol, GroundAtom, Iterable[str | clingo.Symbol | GroundAtom]]) -> "Model":
-        res = Model.of_elements(*args)
+    def of_atoms(
+            *args: Union[str, clingo.Symbol, GroundAtom, Iterable[str | clingo.Symbol | GroundAtom]],
+            sort: bool = True,
+    ) -> "Model":
+        res = Model.of_elements(*args, sort=sort)
         validate("only atoms", res.contains_only_ground_atoms, equals=True,
                  help_msg="Use Model.of_elements() to create a model with numbers and strings")
         return res
 
     @staticmethod
     def of_elements(
-            *args: int | str | clingo.Symbol | GroundAtom | Iterable[int | str | clingo.Symbol | GroundAtom]
+            *args: int | str | clingo.Symbol | GroundAtom | Iterable[int | str | clingo.Symbol | GroundAtom],
+            sort: bool = True,
     ) -> "Model":
-        def build(atom):
-            if type(atom) in [GroundAtom, int]:
-                return atom
-            if type(atom) is clingo.Symbol:
-                if atom.type == clingo.SymbolType.Number:
-                    return atom.number
-                if atom.type == clingo.SymbolType.String:
-                    return atom.string
-                return GroundAtom(atom)
-            if type(atom) is str:
+        def build(the_atom):
+            if type(the_atom) in [GroundAtom, int]:
+                return the_atom
+            if type(the_atom) is clingo.Symbol:
+                if the_atom.type == clingo.SymbolType.Number:
+                    return the_atom.number
+                if the_atom.type == clingo.SymbolType.String:
+                    return the_atom.string
+                return GroundAtom(the_atom)
+            if type(the_atom) is str:
                 try:
-                    return GroundAtom.parse(atom)
+                    return GroundAtom.parse(the_atom)
                 except ValidationError:
-                    if atom[0] == '"' == atom[-1]:
-                        return Parser.parse_ground_term(atom).string
-                    return Parser.parse_ground_term(f'"{atom}"').string
+                    if the_atom[0] == '"' == the_atom[-1]:
+                        return Parser.parse_ground_term(the_atom).string
+                    return Parser.parse_ground_term(f'"{the_atom}"').string
             return None
 
         flattened = []
@@ -109,12 +114,19 @@ class Model:
                     built_element = build(atom)
                     validate("is atom", built_element, help_msg=f"Failed to build atom from {element}")
                     flattened.append(built_element)
-        return Model(
+
+        model = Model(key=Model.__key, value=tuple(flattened), is_sorted=False)
+        return model.sorted if sort else model
+
+    @cached_property
+    def sorted(self) -> "Model":
+        return self if self.is_sorted else Model(
             key=Model.__key,
             value=
-            tuple(sorted(x for x in flattened if type(x) is int)) +
-            tuple(sorted(x for x in flattened if type(x) is str)) +
-            tuple(sorted(x for x in flattened if type(x) is GroundAtom))
+            tuple(sorted(x for x in self if type(x) is int)) +
+            tuple(sorted(x for x in self if type(x) is str)) +
+            tuple(sorted(x for x in self if type(x) is GroundAtom)),
+            is_sorted=True,
         )
 
     def __post_init__(self, key: PrivateKey):
@@ -134,7 +146,7 @@ class Model:
 
     @cached_property
     def contains_only_ground_atoms(self) -> bool:
-        return all(type(element) == GroundAtom for element in self)
+        return all(type(element) is GroundAtom for element in self)
 
     @property
     def as_facts(self) -> str:
@@ -170,10 +182,10 @@ class Model:
         return self.filter(when)
 
     def filter(self, when: Callable[[GroundAtom], bool]) -> "Model":
-        return Model(key=self.__key, value=tuple(atom for atom in self if when(atom)))
+        return Model(key=self.__key, value=tuple(atom for atom in self if when(atom)), is_sorted=self.is_sorted)
 
     def map(self, fun: Callable[[GroundAtom], GroundAtom]) -> 'Model':
-        return Model(key=self.__key, value=tuple(sorted(fun(atom) for atom in self)))
+        return Model(key=self.__key, value=tuple(sorted(fun(atom) for atom in self)), is_sorted=self.is_sorted)
 
     def rename(self, predicate: Predicate, new_name: Predicate) -> "Model":
         validate("same arity", predicate.arity == new_name.arity, equals=True,

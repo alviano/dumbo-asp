@@ -3,7 +3,7 @@ import dataclasses
 import re
 from dataclasses import InitVar
 from functools import cached_property
-from typing import Optional, Iterable, Any, Final
+from typing import Optional, Iterable, Any, Final, List
 
 import clingo
 import clingo.ast
@@ -132,6 +132,9 @@ class SymbolicRule:
                      if literal.sign == clingo.ast.Sign.Negation and "symbol" in literal.atom.keys())
 
     def serialize(self, *, base64_encode: bool = True) -> tuple[GroundAtom, ...]:
+        return tuple(GroundAtom.parse(atom) for atom in self.serialize_as_strings(base64_encode=base64_encode))
+
+    def serialize_as_strings(self, *, base64_encode: bool = True) -> List[str]:
         def b64(s):
             return f'"{base64.b64encode(str(s).encode()).decode()}"' if base64_encode else \
                 str(clingo.String(str(s)))
@@ -174,7 +177,7 @@ class SymbolicRule:
                     if predicate == "neg_body":
                         continue
             res.append(f'{predicate}({rule}, {b64(literal.atom)})')
-        return tuple(GroundAtom.parse(atom) for atom in res)
+        return res
 
     @cached_property
     def head_variables(self) -> tuple[str, ...]:

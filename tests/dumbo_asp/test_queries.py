@@ -213,6 +213,18 @@ def test_explanation_graph_lack_of_support():
     assert 'link("a","b","a :- b' in graph.as_facts
 
 
+def test_explanation_graph_lack_of_support_multiple_rules():
+    program = SymbolicProgram.parse("a :- b.  a :- c.")
+    answer_set = Model.empty()
+    herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b", "c"]]
+    query = Model.of_program("a.")
+    graph = explanation_graph(program, answer_set, herbrand_base, query)
+    assert '"a",false,(lack_of_support,' in graph.as_facts
+    assert '"b",false,(lack_of_support,' in graph.as_facts
+    assert 'link("a","b","a :- b' in graph.as_facts
+    assert 'link("a","c","a :- c' in graph.as_facts
+
+
 def test_explanation_graph_last_support():
     program = SymbolicProgram.parse("a :- b. :- not a. {b}.")
     answer_set = Model.of_program("b.")
@@ -238,3 +250,14 @@ def test_explanation_graph_constraint():
     assert '"a",false,(constraint,' in graph.as_facts
     assert '"b",true,(constraint,' in graph.as_facts
     assert 'link("b","a"' in graph.as_facts
+
+
+def test_explanation_graph_last_support_multiple_rules():
+    program = SymbolicProgram.parse("a :- b.  a :- c.  :- not a.  :- c.  {b}.")
+    answer_set = Model.of_program("a. b.")
+    herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b", "c"]]
+    query = Model.of_program("b.")
+    graph = explanation_graph(program, answer_set, herbrand_base, query)
+    assert '"b",true,(last_support,' in graph.as_facts
+    assert 'link("b","a"' in graph.as_facts
+    assert 'link("b","c"' in graph.as_facts

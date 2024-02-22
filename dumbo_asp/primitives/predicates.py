@@ -1,6 +1,7 @@
 import dataclasses
 import functools
 from dataclasses import InitVar
+from functools import lru_cache
 from typing import Optional
 
 import clingo
@@ -90,5 +91,6 @@ class Predicate:
         return self.arity < other.arity
 
     @staticmethod
+    @lru_cache
     def false() -> "Predicate":
         return Predicate.of(clingo.Function("__false__")).drop_arity()

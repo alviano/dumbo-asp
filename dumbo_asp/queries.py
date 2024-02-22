@@ -5,7 +5,7 @@ import subprocess
 import webbrowser
 import zlib
 from pathlib import Path
-from typing import Final, Iterable, Sequence
+from typing import Final, Iterable, Sequence, Optional, List
 
 import clingo
 import igraph
@@ -365,7 +365,6 @@ def __explanation_graph_pus_program(
         answer_set: Model,
         herbrand_base: Iterable[GroundAtom],
         query: Model,
-        pus_predicate: str,
 ):
     query_atoms = set(query)
     answer_set_atoms = set(answer_set)
@@ -377,32 +376,32 @@ def __explanation_graph_pus_program(
             query_atoms.remove(atom)
         else:
             constraints.append(SymbolicRule.parse(
-                f":- not {atom} %* assumption *%; {pus_predicate}(answer_set,{len(constraints)})." if atom in answer_set_atoms else
-                f":-     {atom} %* assumption *%; {pus_predicate}(answer_set,{len(constraints)})."
+                f":- not {atom} %* assumption *%; __pus__(answer_set,{len(constraints)})." if atom in answer_set_atoms else
+                f":-     {atom} %* assumption *%; __pus__(answer_set,{len(constraints)})."
             ))
     for atom in query_atoms:
         query_literals.append(f"not {atom}")
 
-    all_selectors = [GroundAtom.parse(f"{pus_predicate}(program,{index})") for index in range(len(program))] + [
-        GroundAtom.parse(f"{pus_predicate}(answer_set,{index})") for index in range(len(constraints))
+    all_selectors = [GroundAtom.parse(f"__pus__(program,{index})") for index in range(len(program))] + [
+        GroundAtom.parse(f"__pus__(answer_set,{index})") for index in range(len(constraints))
     ]
 
     pus_program = SymbolicProgram.of(
-        *(rule.with_extended_body(SymbolicAtom.parse(f"{pus_predicate}(program,{index})"))
+        *(rule.with_extended_body(SymbolicAtom.parse(f"__pus__(program,{index})"))
           for index, rule in enumerate(program)),
         *constraints,
-        SymbolicRule.parse(f"{pus_predicate} :- {', '.join(query_literals)}."),
+        SymbolicRule.parse(f"__pus__ :- {', '.join(query_literals)}."),
         SymbolicRule.parse(
             "{"
-            + f"{pus_predicate}(program,0..{len(program) - 1})"
+            + f"__pus__(program,0..{len(program) - 1})"
             + (
-                f"; {pus_predicate}(answer_set,0..{len(constraints) - 1})"
+                f"; __pus__(answer_set,0..{len(constraints) - 1})"
                 if len(constraints) > 0
                 else ""
             )
             + "}."
         ),
-    ).expand_global_and_local_variables(herbrand_base=Model.of_atoms(*herbrand_base, *all_selectors))
+    ).expand_global_and_local_variables(herbrand_base=Model.of_atoms(*herbrand_base, *all_selectors, sort=False))
 
     control = clingo.Control(["--supp-models", "--no-ufs-check", "--sat-prepro=no", "--eq=0", "--no-backprop"])
     control.add(str(pus_program))
@@ -411,14 +410,14 @@ def __explanation_graph_pus_program(
     control.ground([("base", [])])
     selector_to_literal = {}
     literal_to_selector = {}
-    for atom in control.symbolic_atoms.by_signature(pus_predicate, 2):
+    for atom in control.symbolic_atoms.by_signature("__pus__", 2):
         selector = GroundAtom.parse(str(atom.symbol))
         selector_to_literal[selector] = atom.literal
         literal_to_selector[atom.literal] = selector
 
     class Stopper(clingo.Propagator):
         def init(self, init):
-            program_literal = init.symbolic_atoms[clingo.Function(pus_predicate)].literal
+            program_literal = init.symbolic_atoms[clingo.Function("__pus__")].literal
             init.add_watch(init.solver_literal(program_literal))
 
         def propagate(self, ctl: clingo.PropagateControl, changes: Sequence[int]) -> None:
@@ -456,18 +455,22 @@ def explanation_graph(
         answer_set: Model,
         herbrand_base: Iterable[GroundAtom],
         query: Model,
+        *,
+        collect_pus_program: Optional[List[SymbolicProgram]] = None
 ) -> Model:
-    pus_predicate: Final = f"__pus__"
-    pus_program = __explanation_graph_pus_program(program, answer_set, herbrand_base, query, pus_predicate)
+    pus_program = __explanation_graph_pus_program(program, answer_set, herbrand_base, query)
+    if collect_pus_program is not None:
+        collect_pus_program.append(pus_program)
 
-    serialization = Model.of_atoms(
-        *pus_program.serialize(base64_encode=False),
-        *(GroundAtom.parse(f'query({clingo.String(str(query_atom))})') for query_atom in query),
+    serialization = '\n'.join(
+        [f"{atom}." for atom in pus_program.serialize_as_strings(base64_encode=False)] +
+        [f'query({clingo.String(str(query_atom))}).' for query_atom in query]
     )
 
     seen = set()
     sequence = []
     terminate = []
+    previous_len = 0
 
     def collect(model):
         for at in model.symbols(shown=True):
@@ -485,21 +488,20 @@ def explanation_graph(
                 seen.add(key)
                 sequence.append(atom)
 
-    def search(meta, callback):
-        control = clingo.Control(["1", "--solve-limit=1"])
-        control.add("base", [], meta)
-        control.add("base", [], serialization.as_facts)
-        control.add("base", [], '\n'.join(f"{atom}." for atom in sequence))
-        control.ground([("base", [])])
-        callback(control)
+    sequence_control = clingo.Control(["1", "--solve-limit=1"])
+    sequence_control.add(META_DERIVATION_SEQUENCE)
+    sequence_control.add(serialization)
 
     while not terminate:
+        for atom in sequence[previous_len:]:
+            sequence_control.add(f"{atom}.")
         previous_len = len(sequence)
-        search(META_DERIVATION_SEQUENCE, lambda control: control.solve(on_model=collect))
+        sequence_control.ground([("base", []), ("derivation_sequence", [])])
+        sequence_control.solve(on_model=collect)
         assert len(sequence) > previous_len
 
     res = []
-    pattern = re.compile(pus_predicate + r'\(answer_set,\d+\)\.$')
+    pattern = re.compile(r'__pus__\(answer_set,\d+\)\.$')
 
     def rewrite_links(model):
         for at in model.symbols(shown=True):
@@ -510,9 +512,14 @@ def explanation_graph(
                     atom = GroundAtom.parse(f"node({atom.arguments[0]},{atom.arguments[1]},(assumption,))")
             res.append(atom)
 
-    search(META_EXPLANATION_GRAPH, lambda control: control.solve(on_model=rewrite_links))
-    res = Model.of_atoms(res)
-    return res
+    links_control = clingo.Control(["1", "--solve-limit=1"])
+    links_control.add(META_EXPLANATION_GRAPH)
+    links_control.add(serialization)
+    for atom in sequence:
+        links_control.add(f"{atom}.")
+    links_control.ground([("base", [])])
+    links_control.solve(on_model=rewrite_links)
+    return Model.of_elements(res, sort=False)
 
 
 META_MODELS = """
@@ -759,9 +766,9 @@ link(Atom, BecauseOfAtom, Rule) :-
 
 link(Atom, AtomToSupport, Rule) :-
   assign(Atom, _, (last_support, Rule, AtomToSupport)).
-link(Atom, BecauseOfAtom, Rule) :-
+link(Atom, BecauseOfAtom, Rule') :-
   assign(Atom, _, (last_support, Rule, AtomToSupport));
-  cannot_support(Rule, AtomToSupport, BecauseOfAtom).
+  cannot_support(Rule', AtomToSupport, BecauseOfAtom).
 
 link(Atom, TrueHeadAtom, Rule) :-
   assign(Atom, _, (constraint, Rule, upper_bound));

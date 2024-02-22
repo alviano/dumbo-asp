@@ -2,7 +2,7 @@ import copy
 import dataclasses
 import functools
 from dataclasses import InitVar
-from functools import cached_property
+from functools import cached_property, lru_cache
 from typing import Optional, Final
 
 import clingo
@@ -94,6 +94,7 @@ class SymbolicAtom:
                         clingo.ast.ASTType.BooleanConstant])
 
     @staticmethod
+    @lru_cache
     def of_false() -> "SymbolicAtom":
         return SymbolicAtom.parse("#false")
 

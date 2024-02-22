@@ -3,7 +3,7 @@ import dataclasses
 from collections import defaultdict
 from dataclasses import InitVar
 from functools import cached_property, cache
-from typing import Optional, Iterable, Dict
+from typing import Optional, Iterable, Dict, List
 
 import clingo
 import clingo.ast
@@ -104,10 +104,13 @@ class SymbolicProgram:
         return res, variables
 
     def serialize(self, *, base64_encode: bool = True) -> tuple[GroundAtom, ...]:
+        return tuple(GroundAtom.parse(atom) for atom in self.serialize_as_strings(base64_encode=base64_encode))
+
+    def serialize_as_strings(self, *, base64_encode: bool = True) -> List[str]:
         res = []
         for rule in self:
-            res.extend(rule.serialize(base64_encode=base64_encode))
-        return tuple(dict.fromkeys(res))
+            res.extend(rule.serialize_as_strings(base64_encode=base64_encode))
+        return res
 
     @cached_property
     def predicates(self) -> tuple[Predicate, ...]:
