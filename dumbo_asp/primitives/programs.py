@@ -180,6 +180,8 @@ class SymbolicProgram:
             rules_to_variables: Dict[SymbolicRule, Iterable[str]],
             herbrand_base: Optional[Model] = None,
     ) -> "SymbolicProgram":
+        if not rules_to_variables:
+            return self
         rules = []
         for __rule in self.__rules:
             if __rule in rules_to_variables.keys():
