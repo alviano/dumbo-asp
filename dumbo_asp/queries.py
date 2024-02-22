@@ -383,8 +383,11 @@ def __explanation_graph_pus_program(
     for atom in query_atoms:
         query_literals.append(f"not {atom}")
 
-    false: Final = Predicate.false().name
-    return SymbolicProgram.of(
+    all_selectors = [GroundAtom.parse(f"{pus_predicate}(program,{index})") for index in range(len(program))] + [
+        GroundAtom.parse(f"{pus_predicate}(answer_set,{index})") for index in range(len(constraints))
+    ]
+
+    pus_program = SymbolicProgram.of(
         *(rule.with_extended_body(SymbolicAtom.parse(f"{pus_predicate}(program,{index})"))
           for index, rule in enumerate(program)),
         *constraints,
@@ -399,21 +402,12 @@ def __explanation_graph_pus_program(
             )
             + "}."
         ),
-        # something from to_zero_simplification_version() to make the grounder less intelligent
-        SymbolicRule.parse('{' + '; '.join(str(atom) for atom in herbrand_base) + f"}} :- {false}."),
-        SymbolicRule.parse(f"{{{false}}}."),
-        SymbolicRule.parse(f":- {false}."),
-    )
+    ).expand_global_and_local_variables(herbrand_base=Model.of_atoms(*herbrand_base, *all_selectors))
 
-
-def __explanation_graph_expanded_program(
-        pus_program: SymbolicProgram,
-        herbrand_base: Iterable[GroundAtom],
-        all_selectors: Iterable[GroundAtom],
-        pus_predicate: str,
-):
     control = clingo.Control(["--supp-models", "--no-ufs-check", "--sat-prepro=no", "--eq=0", "--no-backprop"])
     control.add(str(pus_program))
+    for atom in herbrand_base:
+        control.add(f"#external {atom}.")
     control.ground([("base", [])])
     selector_to_literal = {}
     literal_to_selector = {}
@@ -450,11 +444,10 @@ def __explanation_graph_expanded_program(
             selector_to_literal=selector_to_literal,
         )
 
-    herbrand_base = Model.of_atoms(*herbrand_base, *all_selectors)
     return SymbolicProgram.of(
-        *(rule for index, rule in enumerate(pus_program) if index < len(pus_program) - 3),  # last three rules are from to_zero_simplification_version()
+        *pus_program,
         *(SymbolicRule.parse(f"{atom}.") for atom in selectors)
-    ).expand_global_and_local_variables(herbrand_base=herbrand_base)
+    )
 
 
 @typeguard.typechecked
@@ -466,18 +459,9 @@ def explanation_graph(
 ) -> Model:
     pus_predicate: Final = f"__pus__"
     pus_program = __explanation_graph_pus_program(program, answer_set, herbrand_base, query, pus_predicate)
-    selectors = [
-        GroundAtom.parse(f"{pus_predicate}(program,{index})")
-        for index in range(len(program))
-    ] + [
-        GroundAtom.parse(f"{pus_predicate}(answer_set,{index})")
-        for index in range(len(pus_program) - len(program) - 5)
-        # the extended program contains modified original rules, 5 extra rules, and constraints for the answer set
-    ]
-    expanded_program = __explanation_graph_expanded_program(pus_program, herbrand_base, selectors, pus_predicate)
 
     serialization = Model.of_atoms(
-        *expanded_program.serialize(base64_encode=False),
+        *pus_program.serialize(base64_encode=False),
         *(GroundAtom.parse(f'query({clingo.String(str(query_atom))})') for query_atom in query),
     )
 
@@ -515,7 +499,7 @@ def explanation_graph(
         assert len(sequence) > previous_len
 
     res = []
-    pattern = re.compile(r'__pus__\(answer_set,\d+\)\.$')
+    pattern = re.compile(pus_predicate + r'\(answer_set,\d+\)\.$')
 
     def rewrite_links(model):
         for at in model.symbols(shown=True):
