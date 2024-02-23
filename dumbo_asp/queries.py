@@ -365,6 +365,8 @@ def __explanation_graph_pus_program(
         answer_set: Model,
         herbrand_base: Iterable[GroundAtom],
         query: Model,
+        *,
+        collect_pus_program: Optional[List[SymbolicProgram]] = None,
 ):
     query_atoms = set(query)
     answer_set_atoms = set(answer_set)
@@ -401,7 +403,12 @@ def __explanation_graph_pus_program(
             )
             + "}."
         ),
-    ).expand_global_and_local_variables(herbrand_base=Model.of_atoms(*herbrand_base, *all_selectors, sort=False))
+    )
+    if collect_pus_program is not None:
+        collect_pus_program.append(pus_program)
+    pus_program = pus_program.expand_global_and_local_variables(
+        herbrand_base=Model.of_atoms(*herbrand_base, *all_selectors, sort=False)
+    )
 
     control = clingo.Control(["--supp-models", "--no-ufs-check", "--sat-prepro=no", "--eq=0", "--no-backprop"])
     control.add(str(pus_program))
@@ -443,10 +450,13 @@ def __explanation_graph_pus_program(
             selector_to_literal=selector_to_literal,
         )
 
-    return SymbolicProgram.of(
+    pus_program = SymbolicProgram.of(
         *pus_program,
         *(SymbolicRule.parse(f"{atom}.") for atom in selectors)
     )
+    if collect_pus_program is not None:
+        collect_pus_program.append(pus_program)
+    return pus_program
 
 
 @typeguard.typechecked
@@ -456,11 +466,10 @@ def explanation_graph(
         herbrand_base: Iterable[GroundAtom],
         query: Model,
         *,
-        collect_pus_program: Optional[List[SymbolicProgram]] = None
+        collect_pus_program: Optional[List[SymbolicProgram]] = None,
 ) -> Model:
-    pus_program = __explanation_graph_pus_program(program, answer_set, herbrand_base, query)
-    if collect_pus_program is not None:
-        collect_pus_program.append(pus_program)
+    pus_program = __explanation_graph_pus_program(program, answer_set, herbrand_base, query,
+                                                  collect_pus_program=collect_pus_program)
 
     serialization = '\n'.join(
         [f"{atom}." for atom in pus_program.serialize_as_strings(base64_encode=False)] +
