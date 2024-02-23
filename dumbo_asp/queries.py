@@ -405,6 +405,7 @@ def __explanation_graph_pus_program(
         ),
     )
     if collect_pus_program is not None:
+        collect_pus_program.append(SymbolicProgram.parse('\n'.join(f"{atom}." for atom in all_selectors)))
         collect_pus_program.append(pus_program)
     pus_program = pus_program.expand_global_and_local_variables(
         herbrand_base=Model.of_atoms(*herbrand_base, *all_selectors, sort=False)
@@ -467,6 +468,19 @@ def explanation_graph(
         *,
         collect_pus_program: Optional[List[SymbolicProgram]] = None,
 ) -> Model:
+    """
+    Compute an explanation graph for a conjunctive query.
+    :param program: The program of interest (including facts, possibly partially expanded and reordered)
+    :param answer_set: All true atoms from the program (the program must not have #show directives)
+    :param herbrand_base: Some atoms of interest in addition to those mentioned in the answer set and in the query
+    :param query: The conjunctive query in the form of facts (truth values implicit from the answer set)
+    :param collect_pus_program: An optional list that will be extended with four programs:
+    [0] the symbolic program used to compute the 1-PUS;
+    [1] the selectors in the program (in the form of facts);
+    [2] the reduced selectors being the preferred 1-PUS;
+    [3] the expanded program (at index 0) including the preferred 1-PUS (at index 2).
+    :return: a graph encoded by predicates node and link (with labels on nodes and links)
+    """
     pus_program = __explanation_graph_pus_program(program, answer_set, herbrand_base, query,
                                                   collect_pus_program=collect_pus_program)
 
