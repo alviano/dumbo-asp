@@ -450,11 +450,10 @@ def __explanation_graph_pus_program(
             selector_to_literal=selector_to_literal,
         )
 
-    pus_program = SymbolicProgram.of(
-        *pus_program,
-        *(SymbolicRule.parse(f"{atom}.") for atom in selectors)
-    )
+    selectors_program = SymbolicProgram.parse('\n'.join(f"{atom}." for atom in selectors))
+    pus_program = SymbolicProgram.of(*pus_program, *selectors_program)
     if collect_pus_program is not None:
+        collect_pus_program.append(selectors_program)
         collect_pus_program.append(pus_program)
     return pus_program
 
