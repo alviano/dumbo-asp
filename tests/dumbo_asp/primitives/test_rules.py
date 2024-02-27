@@ -5,7 +5,7 @@ from dumbo_utils.validation import ValidationError
 from dumbo_asp.primitives.atoms import SymbolicAtom
 from dumbo_asp.primitives.models import Model
 from dumbo_asp.primitives.predicates import Predicate
-from dumbo_asp.primitives.rules import SymbolicRule
+from dumbo_asp.primitives.rules import SymbolicRule, ANONYMOUS_VARIABLE_PREFIX
 from dumbo_asp.primitives.terms import SymbolicTerm
 
 
@@ -51,6 +51,10 @@ def test_symbolic_rule_global_safe_variables():
     assert SymbolicRule.parse("a(X) :- X = #count{Y : b(Y)} = X.").global_safe_variables == ("X",)
 
 
+def test_symbolic_rule_global_safe_variables_when_there_are_anonymous_variables():
+    assert SymbolicRule.parse("a(X) :- b(X,_).").global_safe_variables == ("X",)
+
+
 def test_symbolic_rule_with_extended_body():
     assert str(SymbolicRule.parse("a.").with_extended_body(SymbolicAtom.parse("b"))) == "a :- b."
     assert str(SymbolicRule.parse("a :- b.").with_extended_body(SymbolicAtom.parse("c"), clingo.ast.Sign.Negation)) == \
@@ -92,12 +96,26 @@ def test_symbolic_rule_is_fact():
 
 
 def test_expand_zero_global_variables_with_local_variables():
-    rule = SymbolicRule.parse("""
-:- bar(X) : foo(X).
-    """.strip())
+    rule = SymbolicRule.parse(":- bar(X) : foo(X).")
     rules = rule.expand_global_and_local_variables(herbrand_base=Model.of_program("foo(1..3)."))
     assert len(rules) == 1
     assert str(rules[0]) == ":- bar(3); bar(2); bar(1)."
+
+
+def test_expand_global_variables_when_there_are_anonymous_variables():
+    rule = SymbolicRule.parse("a(X) :- b(X,_).")
+    rules = rule.expand_global_and_local_variables(herbrand_base=Model.of_program("b(1..3, 6..7)."))
+    assert len(rules) == 3
+    assert "a(1) :- b(1,_)." in '\n'.join(str(rule) for rule in rules)
+
+    rule = rule.with_named_anonymous_variables
+    rules = rule.expand_global_and_local_variables(herbrand_base=Model.of_program("b(1..3, 6..7)."))
+    assert len(rules) == 6
+    assert "a(1) :- b(1,6)." in '\n'.join(str(rule) for rule in rules)
+
+
+def test_with_named_anonymous_variables():
+    assert SymbolicRule.parse("a(X) :- b(X,_).").with_named_anonymous_variables == SymbolicRule.parse(f"a(X) :- b(X,{ANONYMOUS_VARIABLE_PREFIX}_1).")
 
 
 def test_predicate_renaming_in_symbolic_rule():

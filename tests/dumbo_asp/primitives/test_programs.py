@@ -4,7 +4,7 @@ from dumbo_asp.primitives.atoms import GroundAtom, SymbolicAtom
 from dumbo_asp.primitives.models import Model
 from dumbo_asp.primitives.predicates import Predicate
 from dumbo_asp.primitives.programs import SymbolicProgram
-from dumbo_asp.primitives.rules import SymbolicRule
+from dumbo_asp.primitives.rules import SymbolicRule, ANONYMOUS_VARIABLE_PREFIX
 from dumbo_asp.primitives.terms import SymbolicTerm
 
 
@@ -321,3 +321,8 @@ pos_body("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==","YigxLDIp").
 rule("YSgxKSA6LSBiKDEsMiksIG5vdCBjKDIpLg==").
 rule("YigxLDIpLg==").
     """.strip())
+
+
+def test_program_with_named_anonymous_variables():
+    assert (str(SymbolicProgram.parse("a :- b(_).").with_named_anonymous_variables) ==
+            str(SymbolicProgram.parse(f"a :- b({ANONYMOUS_VARIABLE_PREFIX}_1).")))

@@ -261,3 +261,13 @@ def test_explanation_graph_last_support_multiple_rules():
     assert '"b",true,(last_support,' in graph.as_facts
     assert 'link("b","a"' in graph.as_facts
     assert 'link("b","c"' in graph.as_facts
+
+
+def test_with_named_anonymous_variables():
+    program = SymbolicProgram.parse("a :- b(_). {b(0)}.")
+    answer_set = Model.of_program("a. b(0).")
+    herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b(0)"]]
+    query = Model.of_program("a.")
+    graph = explanation_graph(program, answer_set, herbrand_base, query)
+    assert '"a",true,(support,' in graph.as_facts
+    assert 'link("a","b(0)"' in graph.as_facts

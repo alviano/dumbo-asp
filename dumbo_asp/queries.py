@@ -407,7 +407,7 @@ def __explanation_graph_pus_program(
     if collect_pus_program is not None:
         collect_pus_program.append(SymbolicProgram.parse('\n'.join(f"{atom}." for atom in all_selectors)))
         collect_pus_program.append(pus_program)
-    pus_program = pus_program.expand_global_and_local_variables(
+    pus_program = pus_program.with_named_anonymous_variables.expand_global_and_local_variables(
         herbrand_base=Model.of_atoms(*herbrand_base, *all_selectors, sort=False)
     )
 

@@ -63,6 +63,10 @@ class SymbolicProgram:
             yield rule
 
     @cached_property
+    def with_named_anonymous_variables(self) -> "SymbolicProgram":
+        return SymbolicProgram.of(rule.with_named_anonymous_variables for rule in self)
+
+    @cached_property
     def herbrand_universe(self) -> set[SymbolicTerm]:
         res = set()
 

@@ -21,6 +21,11 @@ from dumbo_asp.primitives.terms import SymbolicTerm
 from dumbo_asp.utils import uuid, extract_parsed_string
 
 
+ANONYMOUS_VARIABLE_PREFIX: Final = "AnonVar_2837c0c3_fe3d_4b61_95f8_7c756a83c5dd"
+SUBSTITUTE_VARIABLE_PREFIX: Final = "§2837c0c3"
+SUBSTITUTE_VARIABLE_SUFFIX: Final = "§§2837c0c3"
+
+
 @typeguard.typechecked
 @dataclasses.dataclass(frozen=True)
 class SymbolicRule:
@@ -231,6 +236,32 @@ class SymbolicRule:
         return tuple(sorted(res))
 
     @cached_property
+    def with_named_anonymous_variables(self) -> "SymbolicRule":
+        string = self.__parsed_string or str(self.__value)
+
+        class Transformer(clingo.ast.Transformer):
+            def __init__(self):
+                super().__init__()
+                self.counter = 0
+                self.res = string
+
+            def visit_Variable(self, node):
+                if node.name == "_":
+                    self.counter += 1
+                    self.res = utils.replace_in_parsed_string(self.res, node.location, f'{ANONYMOUS_VARIABLE_PREFIX}_{self.counter}')
+                return node
+
+            # def visit_BodyAggregateElement(self, node):  NOT SUPPORTED AT THE MOMENT
+            def visit_ConditionalLiteral(self, node):
+                self.visit_children(node)
+                return node
+
+        transformer = Transformer()
+        transformer.visit(self.__value)
+        return SymbolicRule.parse(transformer.res, self.disabled)
+
+
+    @cached_property
     def predicates(self) -> tuple[Predicate, ...]:
         res = set()
 
@@ -338,9 +369,6 @@ class SymbolicRule:
             conjunctive_query=self.body_as_string(),
         ) if the_variables else ([],)
 
-        prefix = uuid()
-        suffix = uuid()
-
         class Transformer(clingo.ast.Transformer):
             def __init__(self):
                 super().__init__()
@@ -349,7 +377,8 @@ class SymbolicRule:
 
             def visit_Variable(self, node):
                 if node.name in the_variables:
-                    self.locations.append((node.location, prefix + node.name + suffix))
+                    self.locations.append((node.location,
+                                           SUBSTITUTE_VARIABLE_PREFIX + node.name + SUBSTITUTE_VARIABLE_SUFFIX))
                 return node
 
             # def visit_BodyAggregateElement(self, node):  NOT SUPPORTED AT THE MOMENT
@@ -364,7 +393,7 @@ class SymbolicRule:
         for location, replacement in reversed(transformer.locations):
             fmt = utils.replace_in_parsed_string(fmt, location, replacement)
 
-        pattern = f"{prefix}({'|'.join(var for var in the_variables)}){suffix}"
+        pattern = f"{SUBSTITUTE_VARIABLE_PREFIX}({'|'.join(var for var in the_variables)}){SUBSTITUTE_VARIABLE_SUFFIX}"
         var_to_index = {var: index for index, var in enumerate(the_variables)}
 
         def apply(substitution):
