@@ -727,9 +727,6 @@ assign'(BodyAtom, true, (last_support, Rule, Atom)) :-
 assign'(BodyAtom, false, (last_support, Rule, Atom)) :-
   last_support(Rule, Atom);
   neg_body(Rule, BodyAtom).
-assign'(HeadAtom, false, (last_support, Rule, Atom)) :-
-  last_support(Rule, Atom), not choice(Rule, _, _);
-  head(Rule, HeadAtom), HeadAtom != Atom.
 
 constraint(Rule, upper_bound) :-
   rule(Rule), head_bounds(Rule, LowerBound, UpperBound);
