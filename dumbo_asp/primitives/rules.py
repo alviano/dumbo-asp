@@ -87,6 +87,18 @@ class SymbolicRule:
             return SymbolicAtom.of_false()
         return SymbolicAtom.of(self.__value.head.atom.symbol)
 
+    @property
+    def head_atoms(self) -> tuple[SymbolicAtom, ...]:
+        res = []
+
+        class Transformer(clingo.ast.Transformer):
+            def visit_Function(self, node):
+                res.append(SymbolicAtom.of(node))
+                return node
+
+        Transformer().visit(self.__value.head)
+        return tuple(res)
+
     @staticmethod
     def __compute_choice_bounds(choice):
         left, right = 0, "unbounded"

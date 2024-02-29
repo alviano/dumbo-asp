@@ -223,3 +223,9 @@ rule("a :- 1 = 2..3.").
 head("a :- 2 = 1..3.","a").
 rule("a :- 2 = 1..3.").
            """.strip())
+
+
+def test_head_variables():
+    assert ' '.join(str(atom) for atom in SymbolicRule.parse("a(X) :- b(X).").head_atoms) == "a(X)"
+    assert ' '.join(str(atom) for atom in SymbolicRule.parse("a(X) | c(X) :- b(X).").head_atoms) == "a(X) c(X)"
+    assert ' '.join(str(atom) for atom in SymbolicRule.parse("{a(X); c(X)} :- b(X).").head_atoms) == "a(X) c(X)"
