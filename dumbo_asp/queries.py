@@ -544,17 +544,6 @@ def explanation_graph(
     return Model.of_elements(res, sort=False)
 
 
-def relevant_herbrand_base(
-        program: SymbolicProgram,
-        atoms: Model,
-) -> Model:
-    return Model.of_program(
-        *(f"{atom}." for atom in atoms),
-        *(f"{atom} :- {';'.join(str(lit) for lit in rule.positive_body_literals)}."
-          for rule in program for atom in rule.head_atoms),
-    )
-
-
 META_MODELS = """
 atom( A ) :- atom_tuple(_,A).
 atom(|L|) :-          literal_tuple(_,L).

@@ -80,6 +80,7 @@ def test_symbolic_rule_with_chopped_body():
 
 def test_symbolic_rule_body_as_string():
     assert SymbolicRule.parse("a :- b, c.").body_as_string() == "b; c"
+    assert SymbolicRule.parse("a :- b, not c.").body_as_string(drop_negative_literals=True) == "b"
 
 
 def test_symbolic_rule_apply_variable_substitution():
@@ -225,7 +226,8 @@ rule("a :- 2 = 1..3.").
            """.strip())
 
 
-def test_head_variables():
-    assert ' '.join(str(atom) for atom in SymbolicRule.parse("a(X) :- b(X).").head_atoms) == "a(X)"
-    assert ' '.join(str(atom) for atom in SymbolicRule.parse("a(X) | c(X) :- b(X).").head_atoms) == "a(X) c(X)"
-    assert ' '.join(str(atom) for atom in SymbolicRule.parse("{a(X); c(X)} :- b(X).").head_atoms) == "a(X) c(X)"
+def test_head_elements():
+    assert ' '.join(atom for atom in SymbolicRule.parse("a(X) :- b(X).").head_elements) == "a(X)"
+    assert ' '.join(atom for atom in SymbolicRule.parse("a(X) | c(X) :- b(X).").head_elements) == "a(X) c(X)"
+    assert ' '.join(atom for atom in SymbolicRule.parse("{a(X); c(X)} :- b(X).").head_elements) == "a(X) c(X)"
+    assert ' '.join(atom for atom in SymbolicRule.parse("{a(X) : X = 1..3} :- b(X).").head_elements) == "a(X): X = (1..3)"

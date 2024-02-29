@@ -88,12 +88,16 @@ class SymbolicRule:
         return SymbolicAtom.of(self.__value.head.atom.symbol)
 
     @property
-    def head_atoms(self) -> tuple[SymbolicAtom, ...]:
+    def head_elements(self) -> tuple[str, ...]:
         res = []
 
         class Transformer(clingo.ast.Transformer):
+            def visit_ConditionalLiteral(self, node):
+                res.append(str(node))
+                return node
+
             def visit_Function(self, node):
-                res.append(SymbolicAtom.of(node))
+                res.append(str(node))
                 return node
 
         Transformer().visit(self.__value.head)
@@ -135,6 +139,12 @@ class SymbolicRule:
     def choice_upper_bound(self) -> str:
         validate("choice rule", self.is_choice_rule, equals=True)
         return self.__compute_choice_bounds(self.__value.head)[1]
+
+    @property
+    def positive_body(self) -> tuple[SymbolicAtom, ...]:
+        return tuple(SymbolicAtom.of(literal.atom.symbol)
+                     for literal in self.__value.body
+                     if literal.sign == clingo.ast.Sign.NoSign and "symbol" in literal.atom.keys())
 
     @property
     def positive_body_literals(self) -> tuple[SymbolicAtom, ...]:
@@ -338,8 +348,14 @@ class SymbolicRule:
         new_rule = utils.replace_in_parsed_string(string, location, backward_search() if with_backward_search else "")
         return self.parse(new_rule, self.disabled)
 
-    def body_as_string(self, separator: str = "; ") -> str:
-        return separator.join(str(x) for x in self.__value.body)
+    def body_as_string(self, *, separator: str = "; ", drop_negative_literals: bool = False) -> str:
+        return separator.join(
+            str(x) for x in self.__value.body
+            if not drop_negative_literals or (
+                x.literal.sign if x.ast_type == clingo.ast.ASTType.ConditionalLiteral else
+                x.sign
+            ) == clingo.ast.Sign.NoSign
+        )
 
     def apply_variable_substitution(self, **kwargs: SymbolicTerm) -> "SymbolicRule":
         class Transformer(clingo.ast.Transformer):

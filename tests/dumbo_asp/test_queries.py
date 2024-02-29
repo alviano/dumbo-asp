@@ -7,8 +7,7 @@ from dumbo_asp.primitives.programs import SymbolicProgram
 from dumbo_asp.primitives.templates import Template
 from dumbo_asp.queries import compute_minimal_unsatisfiable_subsets, validate_in_all_models, \
     validate_cannot_be_true_in_any_stable_model, validate_cannot_be_extended_to_stable_model, enumerate_models, \
-    enumerate_counter_models, validate_in_all_models_of_the_reduct, explanation_graph, open_graph_in_xasp_navigator, \
-    relevant_herbrand_base
+    enumerate_counter_models, validate_in_all_models_of_the_reduct, explanation_graph
 
 
 def test_compute_minimal_unsatisfiable_subsets():
@@ -272,13 +271,3 @@ def test_with_named_anonymous_variables():
     graph = explanation_graph(program, answer_set, herbrand_base, query)
     assert '"a",true,(support,' in graph.as_facts
     assert 'link("a","b(0)"' in graph.as_facts
-
-
-def test_relevant_herbrand_base():
-    program = SymbolicProgram.parse("a(X) :- b(X), not c(X).")
-    atoms = Model.of_atoms("b(1)", "c(1)", "b(2)", "c(3)")
-    hb = relevant_herbrand_base(program, atoms)
-    assert len(hb) == 6
-    assert "a(1)" in str(hb)
-    assert "a(2)" in str(hb)
-    assert "a(3)" not in str(hb)

@@ -84,7 +84,10 @@ class SymbolicProgram:
     @cached_property
     def herbrand_base(self) -> Model:
         control = clingo.Control()
-        control.add(str(self))
+        control.add(
+            '\n'.join(f"{atom} :- {rule.body_as_string(drop_negative_literals=True)}."
+                      for rule in self for atom in rule.head_elements)
+        )
         control.ground([("base", [])])
         return Model.of_atoms(atom.symbol for atom in control.symbolic_atoms)
 
