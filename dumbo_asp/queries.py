@@ -256,8 +256,14 @@ def pack_asp_chef_url(recipe: str, the_input: str | Model | Iterable[Model]) -> 
 
 
 @typeguard.typechecked
-def pack_xasp_navigator_url(graph_model: Model, *, with_chopped_body=False, with_backward_search=False,
-                            backward_search_symbols=(';', ',', ' :-', ':-')):
+def pack_xasp_navigator_url(
+        graph_model: Model,
+        *,
+        as_forest_with_roots: Optional[Model] = None,
+        with_chopped_body: bool = False,
+        with_backward_search: bool = False,
+        backward_search_symbols=(';', ',', ' :-', ':-'),
+):
     reason_map: Final = {
         "true": {
             "assumption": "true assumption",
@@ -301,13 +307,26 @@ def pack_xasp_navigator_url(graph_model: Model, *, with_chopped_body=False, with
         ) if len(link.arguments) > 2 else atom_to_rule[source]
         graph.add_edge(source, target, label=label)
 
+    if as_forest_with_roots is not None:
+        validate("roots", len(as_forest_with_roots), min_value=1)
+        forest, node_map = graph.unfold_tree(roots=[str(atom) for atom in as_forest_with_roots], mode="out")
+        source_target_to_label = {
+            (link.source, link.target): link["label"]
+            for link in graph.es
+        }
+        for index, node in enumerate(node_map):
+            forest.vs[index]["label"] = graph.vs[node]["label"]
+        for index, link in enumerate(forest.es):
+            forest.es[index]["label"] = source_target_to_label[(node_map[link.source], node_map[link.target])]
+        graph = forest
+
     # layout = graph.layout_sugiyama()
     layout = graph.layout_reingold_tilford()
     res = {
         "nodes": [
             {
                 "id": index,
-                "label": node.attributes()["label"],
+                "label": node["label"],
                 "x": layout.coords[index][0],
                 "y": layout.coords[index][1],
             }
@@ -317,7 +336,7 @@ def pack_xasp_navigator_url(graph_model: Model, *, with_chopped_body=False, with
             {
                 "source": link.tuple[0],
                 "target": link.tuple[1],
-                "label": link.attributes()["label"],
+                "label": link["label"],
             }
             for link in graph.es
         ],
