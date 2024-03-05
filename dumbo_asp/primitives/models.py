@@ -12,7 +12,8 @@ from dumbo_utils.validation import validate, ValidationError
 from dumbo_asp.primitives.atoms import GroundAtom
 from dumbo_asp.primitives.parsers import Parser
 from dumbo_asp.primitives.predicates import Predicate
-from dumbo_asp.utils import uuid
+
+COMPUTE_SUBSTITUTION_UUID: Final = "cace95f4_70b9_44e4_ab5d_9ca8063c798b"
 
 
 @typeguard.typechecked
@@ -23,6 +24,8 @@ class Model:
 
     key: InitVar[PrivateKey]
     __key = PrivateKey()
+
+    __compute_substitutions_calls = 0
 
     class NoModelError(ValueError):
         def __init__(self, *args):
@@ -234,7 +237,8 @@ class Model:
 
     def compute_substitutions(self, *, arguments: str, number_of_arguments: int,
                               conjunctive_query: str) -> tuple[list[clingo.Symbol], ...]:
-        predicate: Final = f"__query_{uuid()}__"
+        Model.__compute_substitutions_calls += 1
+        predicate: Final = f"__query_{COMPUTE_SUBSTITUTION_UUID}_{Model.__compute_substitutions_calls}__"
         self.__compute_substitutions_control.add(predicate, [], f"{predicate}({arguments}) :- {conjunctive_query}.")
         self.__compute_substitutions_control.ground([(predicate, [])])
         return tuple(

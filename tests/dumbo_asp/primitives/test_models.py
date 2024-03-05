@@ -107,3 +107,15 @@ __number(1).
 __string(\"2\").
 __string(\"3\").
     """.strip()
+
+
+def test_model_compute_substitutions():
+    model = Model.of_program("""
+block((sub, Row', Col'), (Row, Col)) :- Row = 1..9; Col = 1..9; Row' = (Row-1) / 3; Col' = (Col-1) / 3.
+    """)
+    res = model.compute_substitutions(
+        arguments="Row, Col",
+        number_of_arguments=2,
+        conjunctive_query="block((sub, Row', Col'), (Row, Col)), block((sub, Row', Col'), (7, 9))",
+    )
+    assert len(res) == 9

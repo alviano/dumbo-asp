@@ -18,7 +18,6 @@ from dumbo_asp.primitives.parsers import Parser
 from dumbo_asp.primitives.predicates import Predicate
 from dumbo_asp.primitives.rules import SymbolicRule
 from dumbo_asp.primitives.terms import SymbolicTerm
-from dumbo_asp.utils import uuid
 
 
 @typeguard.typechecked
@@ -181,7 +180,7 @@ class SymbolicProgram:
             else:
                 rules.extend(__rule.expand_global_safe_variables(
                     variables=variables,
-                    herbrand_base=self.herbrand_base_without_false_predicate if herbrand_base is None else herbrand_base
+                    herbrand_base=self.herbrand_base if herbrand_base is None else herbrand_base
                 ))
         return SymbolicProgram.of(rules)
 
@@ -197,8 +196,7 @@ class SymbolicProgram:
             if __rule in rules_to_variables.keys():
                 rules.extend(__rule.expand_global_safe_variables(
                     variables=rules_to_variables[__rule],
-                    herbrand_base=self.herbrand_base_without_false_predicate
-                    if herbrand_base is None else herbrand_base,
+                    herbrand_base=self.herbrand_base if herbrand_base is None else herbrand_base,
                 ))
             else:
                 rules.append(__rule)
@@ -211,8 +209,7 @@ class SymbolicProgram:
             if not rule.disabled or expand_also_disabled_rules:
                 rules.extend(
                     rule.expand_global_and_local_variables(
-                        herbrand_base=self.herbrand_base_without_false_predicate
-                        if herbrand_base is None else herbrand_base
+                        herbrand_base=self.herbrand_base if herbrand_base is None else herbrand_base
                     )
                 )
             else:
@@ -223,16 +220,6 @@ class SymbolicProgram:
         def key(rule: SymbolicRule):
             return 0 if rule.match(*pattern) else 1
         return SymbolicProgram.of(sorted([rule for rule in self.__rules], key=key))
-
-    def query_herbrand_base(self, query_head_arguments: str, query_body: str,
-                            aux_program: Optional["SymbolicProgram"] = None) -> tuple[SymbolicAtom, ...]:
-        predicate = f"__query_{uuid()}__"
-        program = SymbolicProgram.parse(f"{self.herbrand_base.as_facts}\n"
-                                        f"{predicate}({query_head_arguments}) :- {query_body}.")
-        if aux_program is not None:
-            program = SymbolicProgram.of(*program, *aux_program)
-        model = Model.of_program(str(program)).filter(lambda atom: atom.predicate.name == predicate)
-        return tuple(SymbolicAtom.of_ground_atom(atom) for atom in model)
 
     def to_zero_simplification_version(self, *, extra_atoms: Iterable[GroundAtom] = (), 
                                        compact=False) -> "SymbolicProgram":

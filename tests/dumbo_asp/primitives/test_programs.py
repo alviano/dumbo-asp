@@ -159,17 +159,6 @@ given((7, Col), Value)
     assert program[0] == SymbolicRule.parse("given((7, 3), 4).")
 
 
-def test_query_herbrand_base():
-    program = SymbolicProgram.parse("""
-block((sub, Row', Col'), (Row, Col)) :- Row = 1..9; Col = 1..9; Row' = (Row-1) / 3; Col' = (Col-1) / 3.
-    """)
-    res = program.query_herbrand_base(
-        "Row, Col",
-        "block((sub, Row', Col'), (Row, Col)), block((sub, Row', Col'), (7, 9))"
-    )
-    assert len(res) == 9
-
-
 def test_expand_conditional_literal():
     program = SymbolicProgram.parse("""
 {a(1..3)}.
