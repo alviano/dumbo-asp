@@ -726,7 +726,7 @@ assign'(Atom, false, (lack_of_support,)) :-
 last_support(Rule, Atom) :-
   assign(Atom, true, _), head(Rule, Atom);
   cannot_support(Rule', Atom, _) : head(Rule', Atom), Rule' != Rule.
-  
+
 assign'(BodyAtom, true, (last_support, Rule, Atom)) :-
   last_support(Rule, Atom);
   pos_body(Rule, BodyAtom).
@@ -749,7 +749,7 @@ assign'(Atom, true, (constraint, Rule, Bound)) :-
   constraint(Rule, Bound), neg_body(Rule, Atom);
   assign(Atom', true, _) : pos_body(Rule, Atom');
   assign(Atom', false, _) : neg_body(Rule,Atom'), Atom' != Atom.
-  
+
 #show.
 #show assign(Atom, Value, Reason) : assign'(Atom, Value, Reason), not assign(Atom, _, _).
 #show cannot_support/3.
@@ -814,11 +814,12 @@ reach(Atom') :- reach(Atom), link(Atom, Atom', _), not hide(Atom').
 hide(Atom) :- head(Rule, Atom); not pos_body(Rule,_); not neg_body(Rule,_).
 
 #show.
+#show node("None",true,(assumption,)).
 #show node(X,V,R) : assign(X,V,R), reach(X).
 #show link(X,Y,R) : link(X,Y,R), reach(X), reach(Y).
-#show link(X,X,R) : assign(X,V,(I,R)), reach(X), I != support, not reach(Y) : link(X,Y,_).
-#show link(X,X,R) : assign(X,V,(constraint,R,_)), reach(X), not reach(Y) : link(X,Y,_).
-#show link(X,X,"__in_no_head__ :- __pus__.") : assign(X,V,(lack_of_support,)), reach(X), not reach(Y) : link(X,Y,_).
+#show link(X,"None",R) : assign(X,V,(I,R)), reach(X), I != support, not reach(Y) : link(X,Y,_).
+#show link(X,"None",R) : assign(X,V,(constraint,R,_)), reach(X), not reach(Y) : link(X,Y,_).
+#show link(X,"None","__in_no_head__ :- __pus__.") : assign(X,V,(lack_of_support,)), reach(X), not reach(Y) : link(X,Y,_).
 
 % avoid warnings
 head(0,0) :- #false.
