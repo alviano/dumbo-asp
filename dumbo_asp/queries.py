@@ -1,9 +1,6 @@
-import base64
-import json
 import re
 import subprocess
 import webbrowser
-import zlib
 from pathlib import Path
 from typing import Final, Iterable, Sequence, Optional, List
 
@@ -18,7 +15,6 @@ from dumbo_utils.validation import validate
 from dumbo_asp import utils
 from dumbo_asp.primitives.atoms import GroundAtom, SymbolicAtom
 from dumbo_asp.primitives.models import Model
-from dumbo_asp.primitives.predicates import Predicate
 from dumbo_asp.primitives.programs import SymbolicProgram
 from dumbo_asp.primitives.rules import SymbolicRule
 from dumbo_asp.primitives.terms import SymbolicTerm
@@ -245,9 +241,9 @@ def __collect_models(program: str, options: list[str]) -> tuple[Model, ...]:
 
 @typeguard.typechecked
 def pack_asp_chef_url(recipe: str, the_input: str | Model | Iterable[Model]) -> str:
-    if type(the_input) == Model:
+    if type(the_input) is Model:
         the_input = the_input.as_facts
-    elif type(the_input) != str:
+    elif type(the_input) is not str:
         the_input = '§'.join(model.as_facts for model in the_input)
     url = recipe.replace("/#", "/open#", 1)
     url = url.replace(r"#.*;", "#", 1)
@@ -259,6 +255,7 @@ def pack_asp_chef_url(recipe: str, the_input: str | Model | Iterable[Model]) -> 
 def pack_xasp_navigator_url(
         graph_model: Model,
         *,
+        open_in_browser: bool = False,
         as_forest_with_roots: Optional[Model] = None,
         with_chopped_body: bool = False,
         with_backward_search: bool = False,
@@ -320,8 +317,7 @@ def pack_xasp_navigator_url(
             forest.es[index]["label"] = source_target_to_label[(node_map[link.source], node_map[link.target])]
         graph = forest
 
-    # layout = graph.layout_sugiyama()
-    layout = graph.layout_reingold_tilford()
+    layout = graph.layout_reingold_tilford() if as_forest_with_roots else graph.layout_sugiyama()
     res = {
         "nodes": [
             {
@@ -341,21 +337,12 @@ def pack_xasp_navigator_url(
             for link in graph.es
         ],
     }
-    # json_dump = json.dumps(res, separators=(',', ':')).encode()
     url = "https://xasp-navigator.alviano.net/#"
     # url = "http://localhost:5173/#"
-    return url + compress_object_for_url(res)
-
-
-def open_graph_in_xasp_navigator(graph_model: Model, *, with_chopped_body=False,
-                                 with_backward_search=False, backward_search_symbols=(';', ',', ' :-', ':-')):
-    url = pack_xasp_navigator_url(
-        graph_model,
-        with_chopped_body=with_chopped_body,
-        with_backward_search=with_backward_search,
-        backward_search_symbols=backward_search_symbols
-    )
-    webbrowser.open(url, new=0, autoraise=True)
+    url += compress_object_for_url(res)
+    if open_in_browser:
+        webbrowser.open(url, new=0, autoraise=True)
+    return url
 
 
 def __explanation_graph_trim_selectors(
