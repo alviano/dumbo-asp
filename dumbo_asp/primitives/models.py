@@ -45,7 +45,7 @@ class Model:
             if on_model.cost is not None and on_model.cost <= model.cost:
                 on_model.exception = True
             on_model.cost = model.cost
-            on_model.res = Model.of_elements(model.symbols(shown=True), sort=sort)
+            on_model.res = Model.of_elements(*model.symbols(shown=True), sort=sort)
         on_model.cost = None
         on_model.res = None
         on_model.exception = False
