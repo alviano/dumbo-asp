@@ -183,7 +183,7 @@ def test_explanation_graph_support():
     herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b", "noo"]]
     query = Model.of_program("a.")
     graph = explanation_graph(program, answer_set, herbrand_base, query)
-    assert len(graph) == 3
+    assert len(graph) == 4
     assert '"a",true,(support,"a :- b' in graph.as_facts
     assert '"b",true,(support,"b :- ' in graph.as_facts
     assert 'link("a","b","a :- b' in graph.as_facts
@@ -195,7 +195,7 @@ def test_explanation_graph_head_upper_bound():
     herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b"]]
     query = Model.of_program("a.")
     graph = explanation_graph(program, answer_set, herbrand_base, query)
-    assert len(graph) == 4
+    assert len(graph) == 5
     assert '"a",false,(head_upper_bound' in graph.as_facts
     assert '"b",true,(assumption' in graph.as_facts
     assert 'link("a","b"' in graph.as_facts
@@ -207,7 +207,7 @@ def test_explanation_graph_lack_of_support():
     herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b"]]
     query = Model.of_program("a.")
     graph = explanation_graph(program, answer_set, herbrand_base, query)
-    assert len(graph) == 4
+    assert len(graph) == 5
     assert '"a",false,(lack_of_support,' in graph.as_facts
     assert '"b",false,(lack_of_support,' in graph.as_facts
     assert 'link("a","b","a :- b' in graph.as_facts
@@ -231,7 +231,7 @@ def test_explanation_graph_last_support():
     herbrand_base = [GroundAtom.parse(atom) for atom in ["a", "b"]]
     query = Model.of_program("b.")
     graph = explanation_graph(program, answer_set, herbrand_base, query)
-    assert len(graph) == 4
+    assert len(graph) == 5
     assert '"a",true,(constraint,' in graph.as_facts
     assert '"b",true,(last_support,' in graph.as_facts
     assert 'link("b","a"' in graph.as_facts
@@ -246,7 +246,7 @@ def test_explanation_graph_constraint():
     # print(graph.as_facts)
     # open_graph_in_xasp_navigator(graph, with_chopped_body=True, with_backward_search=True,
     #                              backward_search_symbols=(';', ' :-'))
-    assert len(graph) == 4
+    assert len(graph) == 5
     assert '"a",false,(constraint,' in graph.as_facts
     assert '"b",true,(constraint,' in graph.as_facts
     assert 'link("b","a"' in graph.as_facts

@@ -36,7 +36,7 @@ class SymbolicProgram:
     def of(*args: SymbolicRule | Iterable[SymbolicRule]) -> "SymbolicProgram":
         rules = []
         for arg in args:
-            if type(arg) == SymbolicRule:
+            if type(arg) is SymbolicRule:
                 rules.append(arg)
             else:
                 rules.extend(arg)
