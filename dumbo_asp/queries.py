@@ -481,8 +481,8 @@ def explanation_graph(
     :param herbrand_base: Some atoms of interest in addition to those mentioned in the answer set and in the query
     :param query: The conjunctive query in the form of facts (truth values implicit from the answer set)
     :param collect_pus_program: An optional list that will be extended with four programs:
-    [0] the symbolic program used to compute the 1-PUS;
-    [1] the selectors in the program (in the form of facts);
+    [0] the selectors in the program (in the form of facts);
+    [1] the symbolic program used to compute the 1-PUS;
     [2] the reduced selectors being the preferred 1-PUS;
     [3] the expanded program (at index 0) including the preferred 1-PUS (at index 2).
     :return: a graph encoded by predicates node and link (with labels on nodes and links)
