@@ -47,6 +47,7 @@ class Template:
         "binary_relations",
         "sets",
         "graphs",
+        "grids",
     ]]
 
     @staticmethod
@@ -105,6 +106,11 @@ output({terms}) :- input({terms}).
         return len(Template.__core_templates)
 
     @staticmethod
+    def core_template_names() -> tuple[str, ...]:
+        Template.__init_core_templates()
+        return tuple(Template.__core_templates.keys())
+
+    @staticmethod
     def core_templates_as_parsable_string() -> str:
         Template.__init_core_templates()
         res = []
@@ -134,8 +140,8 @@ output({terms}) :- input({terms}).
                 validate("arity 1", rule.head_atom.predicate_arity, equals=1)
                 validate("arg#0", rule.head_atom.arguments[0].is_string(), equals=True)
                 validate("no nesting", template_under_read is None, equals=True)
-                validate("not a core template", Template.is_core_template(rule.head_atom.predicate.name), equals=False)
-                validate("not seen", rule.head_atom.predicate.name not in templates, equals=True)
+                validate("not a core template", Template.is_core_template(rule.head_atom.arguments[0].string_value()), equals=False)
+                validate("not seen", rule.head_atom.arguments[0].string_value() not in templates, equals=True)
                 template_under_read = (rule.head_atom.arguments[0].string_value(), [])
             elif rule.head_atom.predicate_name == "__end__":
                 validate("empty body", rule.is_fact, equals=True)
@@ -167,10 +173,14 @@ output({terms}) :- input({terms}).
                     validate("mapping args", argument.function_name, equals='')
                     validate("mapping args", argument.function_arity, equals=2)
                     validate("mapping args", argument.arguments[0].is_function(), equals=True)
-                    validate("mapping args", argument.arguments[0].function_arity, equals=0)
+                    validate("mapping args", argument.arguments[0].function_arity, max_value=1)
                     validate("mapping args", argument.arguments[1].is_function(), equals=True)
                     validate("mapping args", argument.arguments[1].function_arity, equals=0)
-                    mapping[argument.arguments[0].function_name] = Predicate.parse(argument.arguments[1].function_name)
+                    key = str(argument.arguments[0].function_name)
+                    if argument.arguments[0].function_arity == 1:
+                        validate("mapping args", argument.arguments[0].arguments[0].is_int(), equals=True)
+                        key += "/" + str(argument.arguments[0].arguments[0])
+                    mapping[key] = Predicate.parse(argument.arguments[1].function_name)
                 if template_under_read is None:
                     if trace:
                         res.append(rule.disable())
@@ -207,3 +217,6 @@ output({terms}) :- input({terms}).
                 elif predicate.name.startswith('__'):
                     mapping[predicate.name] = Predicate.parse(f"{predicate.name}_{local_uuid}")
         return self.program.apply_predicate_renaming(**mapping)
+
+    def predicates(self) -> tuple[Predicate, ...]:
+        return tuple(predicate for predicate in self.program.predicates if predicate.name.endswith('__') or not predicate.name.startswith('__'))

@@ -41,3 +41,18 @@ __template__("@dumbo/all simple directed paths of given length").
     path(P) :- __path(P), __path_length(P,L), length(L).
     in_path(N,P) :- path(P), __in_path(N,P).
 __end__.
+
+__template__("@dumbo/cycle detection").
+    cycle(X) :- link(X,Y), __path(Y,X).
+    __path(X,Y) :- link(X,Y).
+    __path(X,Z) :- link(X,Y), __path(Y,Z).
+__end__.
+
+__template__("@dumbo/strongly connected components").
+    __apply_template__("@dumbo/transitive closure", (relation, link), (closure, __reach)).
+    __same_scc(X,Y) :- __reach(X,Y), __reach(Y,X).
+    __same_scc(X,X) :- node(X).
+
+    in_scc(X,ID) :- node(X), ID = #min{Y : __same_scc(X,Y)}.
+    scc(ID) :- in_scc(X,ID).
+__end__.

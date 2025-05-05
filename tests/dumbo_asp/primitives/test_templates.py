@@ -147,3 +147,55 @@ def test_billion_laughs_attack():
         f"""\n__apply_template__("lol{n}").""")
     with pytest.raises(ValueError):
         Template.expand_program(program, limit=10)
+
+
+def test_core_template_names():
+    assert '@dumbo/collect argument 1 of 1' in Template.core_template_names()
+
+
+def test_is_core_template():
+    assert Template.is_core_template('@dumbo/collect argument 1 of 1')
+
+
+def test_core_template():
+    assert str(Template.core_template('@dumbo/collect argument 1 of 1').program) == 'output(X0) :- input(X0).'
+
+
+def test_template_predicates():
+    assert set(Template.core_template('@dumbo/collect argument 1 of 1').predicates()) == {Predicate.parse('output', 1), Predicate.parse('input', 1)}
+    assert set(Template.core_template("@dumbo/symmetric closure guaranteed").predicates()) == {Predicate.parse('closure', 2), Predicate.parse('relation', 2)}
+
+
+def test_cannot_redefine_templates():
+    with pytest.raises(ValueError):
+        Template.expand_program(SymbolicProgram.parse("""
+        __template__("@test/foo").
+            ok :- ok(X).
+        __end__.
+        __template__("@test/foo").
+            ok :- ok2(X).
+        __end__.
+            """), register_templates=True)
+    with pytest.raises(ValueError):
+        Template.expand_program(SymbolicProgram.parse("""
+        __template__("@test/foo").
+            ok :- ok(X).
+        __end__.
+        __template__("@test/foo").
+            ok :- ok2(X).
+        __end__.
+            """), register_templates=False)
+
+
+def test_template_predicate_with_multiple_arities():
+    Template.expand_program(SymbolicProgram.parse("""
+__template__("@test/ok").
+    ok :- ok(X).
+__end__.
+    """), register_templates=True)
+    assert Template.is_core_template("@test/ok")
+    assert set(Template.core_template("@test/ok").predicates()) == {Predicate.parse('ok', 0), Predicate.parse('ok', 1)}
+    program = Template.expand_program(SymbolicProgram.parse("""
+__apply_template__("@test/ok", (ok(0), bar), (ok, buzz)).
+    """))
+    assert str(program) == "bar :- buzz(X)."
