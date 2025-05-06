@@ -55,3 +55,33 @@ __apply_template__("@dumbo/all simple directed paths of given length").
     program = Template.expand_program(program)
     model = Model.of_program(program)
     assert len(model.filter(when=lambda atom: atom.predicate_name == "path")) == 2
+
+
+def test_cycle_detection():
+    program = SymbolicProgram.parse("""
+link(1,2).
+link(2,3).
+link(2,4).
+link(3,1).
+__apply_template__("@dumbo/cycle detection").
+        """)
+    program = Template.expand_program(program)
+    model = Model.of_program(program)
+    assert len(model.filter(when=lambda atom: atom.predicate_name == "cycle")) == 3
+
+
+def test_scc():
+    program = SymbolicProgram.parse("""
+link(1,2).
+link(2,3).
+link(2,4).
+link(3,1).
+__apply_template__("@dumbo/collect arguments (arity 2)", (input, link), (output, node)).
+__apply_template__("@dumbo/strongly connected components").
+        """)
+    program = Template.expand_program(program)
+    model = [str(atom) for atom in Model.of_program(program) if not str(atom).startswith('__')]
+    assert "in_scc(1,1)" in model
+    assert "in_scc(2,1)" in model
+    assert "in_scc(3,1)" in model
+    assert "in_scc(4,4)" in model

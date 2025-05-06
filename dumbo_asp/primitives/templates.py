@@ -38,6 +38,7 @@ class Template:
 
     name: "Template.Name"
     program: SymbolicProgram
+    documentation: str = dataclasses.field(default="")
     __static_uuid: str = dataclasses.field(default_factory=lambda: utils.uuid(), init=False)
 
     __core_templates = None
@@ -47,6 +48,7 @@ class Template:
         "binary_relations",
         "sets",
         "graphs",
+        "grids",
     ]]
 
     @staticmethod
@@ -55,29 +57,35 @@ class Template:
             return
         Template.__core_templates = {}
 
-        def register(template: str):
+        def register(template: str, documentation: str = ""):
             name, program = template.strip().split('\n', maxsplit=1)
             name = f"@dumbo/{name}"
             assert name not in Template.__core_templates
             Template.__core_templates[name] = Template(
                 Template.Name.parse(name),
                 Template.expand_program(SymbolicProgram.parse(program.strip())),
+                documentation,
             )
 
-        def register_all(templates: str, *, sep="----"):
-            for template in templates.strip().split(sep):
-                if template:
-                    lines = [line[4:] if index > 0 and len(line) >= 4 else line
-                             for index, line in enumerate(template.strip().split('\n'))]
-                    register('\n'.join(lines))
+        # def register_all(templates: str, *, sep="----"):
+        #     for template in templates.strip().split(sep):
+        #         if template:
+        #             lines = [line[4:] if index > 0 and len(line) >= 4 else line
+        #                      for index, line in enumerate(template.strip().split('\n'))]
+        #             register('\n'.join(lines))
 
+        register(
+            "fail if debug messages\n:- __debug__." +
+            '\n'.join([f":- __debug__({','.join('X' + str(i) for i in range(arity))})." for arity in range(100)]) +
+            '\n'.join([f"__debug__({','.join(str(i) for i in range(arity))}) :- #false." for arity in range(100)])
+        )
         for arity in range(10):
             terms = ','.join('X' + str(i) for i in range(arity))
             register(f"""
 exact copy (arity {arity})
 output({terms}) :- input({terms}).
-:- output({terms}), not input({terms}).
-            """)
+__debug__("@dumbo/exact copy (arity {arity}): unexpected ", output({terms}), " without ", input({terms})) :- output({terms}), not input({terms}).
+            """, "Copy `input/{arity}` in `output/{arity}`, and generates `__debug__` atoms if `output/{arity}` is altered outside the template.")
             if arity > 0:
                 register(f"collect arguments (arity {arity})\n" +
                          '\n'.join(f"output(X{index}) :- input({terms})." for index in range(arity)))
@@ -103,6 +111,11 @@ output({terms}) :- input({terms}).
     def core_templates() -> int:
         Template.__init_core_templates()
         return len(Template.__core_templates)
+
+    @staticmethod
+    def core_template_names() -> tuple[str, ...]:
+        Template.__init_core_templates()
+        return tuple(Template.__core_templates.keys())
 
     @staticmethod
     def core_templates_as_parsable_string() -> str:
@@ -134,9 +147,9 @@ output({terms}) :- input({terms}).
                 validate("arity 1", rule.head_atom.predicate_arity, equals=1)
                 validate("arg#0", rule.head_atom.arguments[0].is_string(), equals=True)
                 validate("no nesting", template_under_read is None, equals=True)
-                validate("not a core template", Template.is_core_template(rule.head_atom.predicate.name), equals=False)
-                validate("not seen", rule.head_atom.predicate.name not in templates, equals=True)
-                template_under_read = (rule.head_atom.arguments[0].string_value(), [])
+                validate("not a core template", Template.is_core_template(rule.head_atom.arguments[0].string_value()), equals=False)
+                validate("not seen", rule.head_atom.arguments[0].string_value() not in templates, equals=True)
+                template_under_read = (rule.head_atom.arguments[0].string_value(), [], [])
             elif rule.head_atom.predicate_name == "__end__":
                 validate("empty body", rule.is_fact, equals=True)
                 validate("arity 0", rule.head_atom.predicate_arity, equals=0)
@@ -144,7 +157,8 @@ output({terms}) :- input({terms}).
                 if trace:
                     template_under_read[1].append(rule.disable())
                 the_template = Template(name=Template.Name.parse(template_under_read[0]),
-                                        program=SymbolicProgram.of(template_under_read[1]))
+                                        program=SymbolicProgram.of(template_under_read[1]),
+                                        documentation='\n'.join(template_under_read[2]))
                 if register_templates:
                     Template.__core_templates[template_under_read[0]] = the_template
                 else:
@@ -167,10 +181,14 @@ output({terms}) :- input({terms}).
                     validate("mapping args", argument.function_name, equals='')
                     validate("mapping args", argument.function_arity, equals=2)
                     validate("mapping args", argument.arguments[0].is_function(), equals=True)
-                    validate("mapping args", argument.arguments[0].function_arity, equals=0)
+                    validate("mapping args", argument.arguments[0].function_arity, max_value=1)
                     validate("mapping args", argument.arguments[1].is_function(), equals=True)
                     validate("mapping args", argument.arguments[1].function_arity, equals=0)
-                    mapping[argument.arguments[0].function_name] = Predicate.parse(argument.arguments[1].function_name)
+                    key = str(argument.arguments[0].function_name)
+                    if argument.arguments[0].function_arity == 1:
+                        validate("mapping args", argument.arguments[0].arguments[0].is_int(), equals=True)
+                        key += "/" + str(argument.arguments[0].arguments[0])
+                    mapping[key] = Predicate.parse(argument.arguments[1].function_name)
                 if template_under_read is None:
                     if trace:
                         res.append(rule.disable())
@@ -179,10 +197,16 @@ output({terms}) :- input({terms}).
                     if trace:
                         template_under_read[1].append(rule.disable())
                     template_under_read[1].extend(r for r in template.instantiate(**mapping))
-            elif template_under_read is not None:
-                template_under_read[1].append(rule)
+            elif rule.head_atom.predicate_name == "__doc__":
+                    validate("empty body", rule.is_fact, equals=True)
+                    validate("arg#0", all(argument.is_string() for argument in rule.head_atom.arguments), equals=True)
+                    validate("documentation for templates only", template_under_read is not None, equals=True)
+                    template_under_read[2].extend(argument.string_value() for argument in rule.head_atom.arguments)
             else:
-                res.append(rule)
+                if template_under_read is not None:
+                    template_under_read[1].append(rule)
+                else:
+                    res.append(rule)
 
         return SymbolicProgram.of(res)
 
@@ -196,7 +220,7 @@ output({terms}) :- input({terms}).
         Template.__init_core_templates()
         for arg in kwargs:
             validate("kwargs", arg.startswith('__'), equals=False,
-                     help_msg="Local predicates cannot be renamed externally.")
+                     help_msg="Local (or dunder) predicates cannot be renamed externally.")
         static_uuid = self.__static_uuid
         local_uuid = utils.uuid()
         mapping = {**kwargs}
@@ -207,3 +231,6 @@ output({terms}) :- input({terms}).
                 elif predicate.name.startswith('__'):
                     mapping[predicate.name] = Predicate.parse(f"{predicate.name}_{local_uuid}")
         return self.program.apply_predicate_renaming(**mapping)
+
+    def predicates(self) -> tuple[Predicate, ...]:
+        return tuple(predicate for predicate in self.program.predicates if not predicate.name.startswith('__'))
