@@ -118,6 +118,10 @@ class SymbolicProgram:
             res.extend(rule.serialize_as_strings(base64_encode=base64_encode))
         return res
 
+    @staticmethod
+    def test(self, program):
+        return program + " hi(123)."
+
     @cached_property
     def predicates(self) -> tuple[Predicate, ...]:
         res = set()
