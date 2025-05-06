@@ -27,6 +27,7 @@ __apply_template__("@dumbo/transitive closure guaranteed", (relation, link), (cl
 link(a,b).
 closure(a,a).
 __apply_template__("@dumbo/transitive closure guaranteed", (relation, link)).
+__apply_template__("@dumbo/fail if debug messages").
     """.strip()))
     with pytest.raises(Model.NoModelError):
         Model.of_program(program)

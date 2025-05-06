@@ -85,4 +85,3 @@ __apply_template__("@dumbo/strongly connected components").
     assert "in_scc(2,1)" in model
     assert "in_scc(3,1)" in model
     assert "in_scc(4,4)" in model
-

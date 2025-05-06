@@ -199,3 +199,15 @@ __end__.
 __apply_template__("@test/ok", (ok(0), bar), (ok, buzz)).
     """))
     assert str(program) == "bar :- buzz(X)."
+
+
+def test_template_documentation():
+    assert Template.core_template('@dumbo/subsets').documentation == 'Add to subset/2 the sets (encoded by set/1 and in_set/2) that are in subset relationship.'
+
+
+def test_template_multiline_documentation():
+    assert len(Template.core_template('@dumbo/strongly connected components').documentation.split('\n')) == 3
+
+
+def test_template_multiple_documentation_atoms():
+    assert len(Template.core_template('@dumbo/cycle detection').documentation.split('\n')) == 2
