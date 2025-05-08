@@ -5,11 +5,13 @@ from pathlib import Path
 import clingo
 import clingo.ast
 import typeguard
+from clingo.ast import Sign
 from dumbo_utils.primitives import PrivateKey
 from dumbo_utils.validation import validate
 
 from dumbo_asp import utils
 from dumbo_asp.primitives.predicates import Predicate
+from dumbo_asp.primitives.atoms import SymbolicAtom
 from dumbo_asp.primitives.programs import SymbolicProgram
 
 
@@ -198,11 +200,13 @@ __debug__("@dumbo/exact copy (arity {arity}): unexpected ", output({terms}), " w
                         template_under_read[1].append(rule.disable())
                     template_under_read[1].extend(r for r in template.instantiate(**mapping))
             elif rule.head_atom.predicate_name == "__doc__":
-                    validate("empty body", rule.is_fact, equals=True)
-                    validate("arg#0", all(argument.is_string() for argument in rule.head_atom.arguments), equals=True)
-                    validate("documentation for templates only", template_under_read is not None, equals=True)
-                    template_under_read[2].extend(argument.string_value() for argument in rule.head_atom.arguments)
+                validate("empty body", rule.is_fact, equals=True)
+                validate("arg#0", all(argument.is_string() for argument in rule.head_atom.arguments), equals=True)
+                validate("documentation for templates only", template_under_read is not None, equals=True)
+                template_under_read[2].extend(argument.string_value() for argument in rule.head_atom.arguments)
             else:
+                if rule.head_atom.predicate_name == "__debug__":
+                    rule = rule.with_extended_body(SymbolicAtom.parse("__debug_off__"), Sign.Negation)
                 if template_under_read is not None:
                     template_under_read[1].append(rule)
                 else:
