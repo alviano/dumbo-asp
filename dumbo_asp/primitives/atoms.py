@@ -165,3 +165,7 @@ class SymbolicAtom:
                     all(argument.match(a_pattern.arguments[index]) for index, argument in enumerate(self.arguments)):
                 return True
         return False
+
+    @staticmethod
+    def test2(prog):
+        return prog + "ciao(123)."
