@@ -26,6 +26,18 @@ __apply_template__("@dumbo/exact copy (arity 1)", (input, foo), (output, bar)).
     assert '__debug__("@dumbo/exact copy (arity 1): unexpected ",output(2)," without ",input(2))' in model.as_facts
 
 
+def test_debug_off():
+    program = SymbolicProgram.parse("""
+foo(1).
+bar(2).
+__apply_template__("@dumbo/exact copy (arity 1)", (input, foo), (output, bar)).
+__apply_template__("@dumbo/debug off").
+    """)
+    program = Template.expand_program(program)
+    model = Model.of_program(program)
+    assert '__debug__("@dumbo/exact copy (arity 1): unexpected ",output(2)," without ",input(2))' not in model.as_facts
+
+
 def test_fail_if_debug_messages():
     program = SymbolicProgram.parse("""
 __debug__(1,2,3,4,5,6,7).

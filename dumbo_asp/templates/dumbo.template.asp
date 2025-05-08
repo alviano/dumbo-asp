@@ -4,7 +4,7 @@ __template__("@dumbo/init").
 __end__.
 
 __template__("@dumbo/debug off").
-    __doc__("Bodies of rules with atomic `__debug__/*` heads are injected with `not __debug_off__` so to essentially not evaluate them (in production).").
+    __doc__("Bodies of rules with atomic `__debug__/*` heads are injected with `not __debug_off__` so to essentially not evaluate them (in production) when this template is applied.").
     __debug_off__.
 __end__.
 
