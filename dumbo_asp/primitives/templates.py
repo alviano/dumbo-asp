@@ -87,8 +87,16 @@ class Template:
 exact copy (arity {arity})
 output({terms}) :- input({terms}).
 __debug__("@dumbo/exact copy (arity {arity}): unexpected ", output({terms}), " without ", input({terms})) :- output({terms}), not input({terms}).
-            """, "Copy `input/{arity}` in `output/{arity}`, and generates `__debug__` atoms if `output/{arity}` is altered outside the template.")
+            """, f"Copy `input/{arity}` in `output/{arity}`, and generates `__debug__` atoms if `output/{arity}` is altered outside the template.")
             if arity > 0:
+                register(f"""
+debug expected exactly one instance (arity {arity})
+__debug__("Expecting 1 instance of ", predicate({arity}), ", found ", Count) :- Count = #count{{ {terms} : predicate({terms})}}, Count != 1.
+""", f"Derive __debug__/* atoms if `predicate/{arity}` does not contain exactly one instance.")
+                register(f"""
+debug expected some instances (arity {arity})
+__debug__("Expecting some instance of ", predicate({arity}), ", found none") :- #count{{ {terms} : predicate({terms})}} = 0.
+""", f"Derive __debug__/* atoms if `predicate/{arity}` does not contain some instances.")
                 register(f"collect arguments (arity {arity})\n" +
                          '\n'.join(f"output(X{index}) :- input({terms})." for index in range(arity)))
                 for other_arity in range(arity):

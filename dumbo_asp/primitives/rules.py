@@ -378,6 +378,8 @@ class SymbolicRule:
     def apply_predicate_renaming(self, **kwargs: Predicate) -> "SymbolicRule":
         class Transformer(clingo.ast.Transformer):
             def visit_Function(self, node):
+                if node.name == '__debug__':
+                    return node.update(**self.visit_children(node))
                 for key in [f"{node.name}/{len(node.arguments)}", node.name]:
                     if key in kwargs.keys():
                         return node.update(name=kwargs[key].name)

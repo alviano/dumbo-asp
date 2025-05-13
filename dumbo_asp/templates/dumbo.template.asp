@@ -19,6 +19,16 @@ __template__("@dumbo/fail if debug messages").
     ...
 __end__.
 
+__template__("@dumbo/debug expected exactly one instance (arity {arity})").
+    __doc__("Derive __debug__/* atoms if `predicate/{arity}` does not contain exactly one instance.").
+    __debug__("Expecting 1 instance of ", predicate({arity}), ", found ", Count) :- Count = #count{{terms} : predicate({terms})}, Count != 1.
+__end__.
+
+__template__("@dumbo/debug expected some instances (arity {arity})").
+    __doc__("Derive __debug__/* atoms if `predicate/{arity}` does not contain some instances.").
+    __debug__("Expecting some instance of ", predicate({arity}), ", found none") :- #count{{terms} : predicate({terms})} = 0.
+__end__.
+
 __template__("@dumbo/exact copy (arity {arity})").
     __doc__("Copy `input/{arity}` in `output/{arity}`, and generates `__debug__` atoms if `output/{arity}` is altered outside the template.").
     output({terms}) :- input({terms}).

@@ -125,6 +125,13 @@ def test_predicate_renaming_in_symbolic_rule():
     assert str(rule) == "c(b) :- b(a)."
 
 
+def test_predicate_renaming_debug_is_special():
+    # functions of arity 0 in __debug__ are not renamed
+    rule = SymbolicRule.parse("__debug__(foo, foo(1)) :- foo, foo(1), buzz(foo, foo(1)).")
+    rule = rule.apply_predicate_renaming(foo=Predicate.parse("bar"))
+    assert str(rule) == "__debug__(foo,bar(1)) :- bar; bar(1); buzz(foo,foo(1))."
+
+
 def test_rule_to_zero_simplification_version():
     rule = SymbolicRule.parse("a(X) :- b(X,Y).").to_zero_simplification_version()
     assert rule == SymbolicRule.parse('__false__(("YShYKSA6LSBiKFgsWSku", ("X","Y")), (X,Y)) |\na(X) :- b(X,Y).')

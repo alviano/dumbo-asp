@@ -23,7 +23,7 @@ __apply_template__("@dumbo/exact copy (arity 1)", (input, foo), (output, bar)).
     """)
     program = Template.expand_program(program)
     model = Model.of_program(program)
-    assert '__debug__("@dumbo/exact copy (arity 1): unexpected ",output(2)," without ",input(2))' in model.as_facts
+    assert '__debug__("@dumbo/exact copy (arity 1): unexpected ",bar(2)," without ",foo(2))' in model.as_facts
 
 
 def test_debug_off():
@@ -35,7 +35,7 @@ __apply_template__("@dumbo/debug off").
     """)
     program = Template.expand_program(program)
     model = Model.of_program(program)
-    assert '__debug__("@dumbo/exact copy (arity 1): unexpected ",output(2)," without ",input(2))' not in model.as_facts
+    assert '__debug__("@dumbo/exact copy (arity 1): unexpected ",bar(2)," without ",foo(2))' not in model.as_facts
 
 
 def test_fail_if_debug_messages():
