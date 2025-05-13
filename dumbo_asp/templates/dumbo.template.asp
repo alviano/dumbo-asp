@@ -30,7 +30,7 @@ __template__("@dumbo/debug expected some instances (arity {arity})").
 __end__.
 
 __template__("@dumbo/exact copy (arity {arity})").
-    __doc__("Copy `input/{arity}` in `output/{arity}`, and generates `__debug__` atoms if `output/{arity}` is altered outside the template.").
+    __doc__("Copy `input/{arity}` into `output/{arity}`, and generates `__debug__` atoms if `output/{arity}` is altered outside the template.").
     output({terms}) :- input({terms}).
     __debug__("@dumbo/exact copy (arity {arity}): unexpected ", output({terms}), " without ", input({terms})) :- output({terms}), not input({terms}).
 __end__.

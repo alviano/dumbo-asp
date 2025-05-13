@@ -85,3 +85,17 @@ __apply_template__("@dumbo/strongly connected components").
     assert "in_scc(2,1)" in model
     assert "in_scc(3,1)" in model
     assert "in_scc(4,4)" in model
+
+
+def test_condensation_graph():
+    program = SymbolicProgram.parse("""
+link(1,2).
+link(2,3).
+link(2,4).
+link(3,1).
+__apply_template__("@dumbo/collect arguments (arity 2)", (input, link), (output, node)).
+__apply_template__("@dumbo/condensation graph").
+        """)
+    program = Template.expand_program(program)
+    model = [str(atom) for atom in Model.of_program(program) if not str(atom).startswith('__')]
+    assert "scc_link(1,4)" in model

@@ -5,8 +5,7 @@ from dumbo_asp.primitives.templates import Template
 
 def test_latin_square():
     program = SymbolicProgram.parse("""
-row(1..4).
-col(1..4).
+size(4).
 value(1..4).
 
 clue((1,1),1).
@@ -29,7 +28,7 @@ clue((2,1),4).
 clue((3,2),4).
 clue((4,3),4).
 
-__apply_template__("@dumbo/latin square").
+__apply_template__("@dumbo/Latin Square").
     """)
     program = Template.expand_program(program)
     model = [str(atom) for atom in Model.of_program(program) if str(atom).startswith('assign')]
@@ -53,7 +52,7 @@ clue((7,2),6).                                  clue((7,7),2).  clue((7,8),8).
 clue((8,4),4).  clue((8,5),1).  clue((8,6),9).  clue((8,9),5).
 clue((9,5),8).                  clue((9,8),7).  clue((9,9),9).
 
-__apply_template__("@dumbo/sudoku").
+__apply_template__("@dumbo/Sudoku").
     """)
     program = Template.expand_program(program)
     model = [str(atom) for atom in Model.of_program(program) if str(atom).startswith('assign')]

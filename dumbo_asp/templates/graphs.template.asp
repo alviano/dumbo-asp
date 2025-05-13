@@ -95,3 +95,14 @@ __template__("@dumbo/strongly connected components").
     in_scc(X,ID) :- node(X), ID = #min{Y : __same_scc(X,Y)}.
     scc(ID) :- in_scc(X,ID).
 __end__.
+
+__template__("@dumbo/condensation graph").
+    __doc__(
+        "Compute the condensation graph of the graph encoded by predicates `node/1` and `link/2`.",
+        "SCCs are encoded by predicates `scc/1` and `in_scc/2`, and links among SCCs are encoded by `scc_link/2`.",
+        "The ID of every SCC is the smallest ID (according to their natural ordering) of the node in the SCC."
+    ).
+
+    __apply_template__("@dumbo/strongly connected components").
+    scc_link(C,C') :- link(X,Y), in_scc(X,C), in_scc(Y,C'), C != C'.
+__end__.

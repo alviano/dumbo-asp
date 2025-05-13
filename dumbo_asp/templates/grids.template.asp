@@ -28,7 +28,7 @@ __template__("@dumbo/enforce clues in assign").
     :- clue((Row,Col),Value), not assign((Row,Col),Value).
 __end__.
 
-__template__("@dumbo/latin square").
+__template__("@dumbo/Latin Square").
     __doc__(
         "Guess a Latin Square of size given by `size/1`, using values from `value/1` and satisfying the clues in `clue/2`.",
         "The guessed Latin Square is stored in `assign/2`."
@@ -37,14 +37,14 @@ __template__("@dumbo/latin square").
     __apply_template__("@dumbo/debug expected exactly one instance (arity 1)", (predicate, size)).
     __apply_template__("@dumbo/debug expected some instances (arity 1)", (predicate, value)).
 
-    __apply_template__("@dumbo/generate grid", (grid, __grid), (rows, size), (cols, size)).
+    __apply_template__("@dumbo/generate grid", (rows, size), (cols, size), (row, __row), (col, __col), (grid, __grid)).
     __apply_template__("@dumbo/guess grid values", (grid, __grid)).
     __apply_template__("@dumbo/enforce clues in assign").
     :- assign((Row,Col),Value), assign((Row',Col),Value), Row < Row'.
     :- assign((Row,Col),Value), assign((Row,Col'),Value), Col < Col'.
 __end__.
 
-__template__("@dumbo/sudoku").
+__template__("@dumbo/Sudoku").
     __doc__(
         "Guess a Sudoku solution of size given by `size/1`, using values from `value/1` and satisfying the clues in `clue/2`.",
         "The produced solution is stored in `assign/2`."
@@ -56,9 +56,47 @@ __template__("@dumbo/sudoku").
     __square(X) :- X = 1..Size, size(Size), Size == X * X.
     __apply_template__("@dumbo/debug expected exactly one instance (arity 1)", (predicate, __square)).
 
-    __apply_template__("@dumbo/latin square").
+    __apply_template__("@dumbo/Latin Square").
 
     __block((Row', Col'), (Row, Col)) :- Row = 1..Size; Col = 1..Size; Row' = (Row-1) / S; Col' = (Col-1) / S, size(Size), __square(S).
     :- __block(Block, Cell), __block(Block, Cell'), Cell < Cell';
         assign(Cell,Value), assign(Cell',Value).
+__end__.
+
+__template__("@dumbo/Diagonal Latin Square").
+    __doc__(
+        "Guess a Diagonal Latin Square of size given by `size/1`, using values from `value/1` and satisfying the clues in `clue/2`.",
+        "The guessed Latin Square is stored in `assign/2`.",
+        "In addition to Latin Square, a Diagonal Latin Square has no repeating values also in the two diagonals."
+    ).
+    __apply_template__("@dumbo/debug expected exactly one instance (arity 1)", (predicate, size)).
+    __apply_template__("@dumbo/debug expected some instances (arity 1)", (predicate, value)).
+
+    __apply_template__("@dumbo/Latin Square").
+
+    % main diagonal
+    :- assign((X,X),V), assign((Y,Y),V), X < Y.
+
+    % anti-diagonal
+    :- size(N), assign((X,Y),V), assign((X2,Y2),V), X + Y = N + 1, X2 + Y2 = N + 1, (X,Y) != (X2,Y2).
+__end__.
+
+__template__("@dumbo/Graeco-Latin squares").
+    __doc__(
+        "Guess two Latin Squares of size given by `size/1`, using values from `value/1` and `value'/1`, and satisfying the clues in `clue/2` and `clue'/2`.",
+        "The guessed Latin Squares are stored in `assign/2` and `assign'/2`, and when superimposed the ordered paired entries in the positions are all distinct."
+    ).
+    __apply_template__("@dumbo/Latin Square").
+    __apply_template__("@dumbo/Latin Square", (value, value'), (clue, clue'), (assign, assign')).
+    :- assign(C1, Value), assign'(C1, Value'), assign(C2, Value), assign'(C2, Value'), C1 < C2.
+__end__.
+
+__template__("@dumbo/Diagonal Graeco-Latin squares").
+    __doc__(
+        "Guess two Diagonal Latin Squares of size given by `size/1`, using values from `value/1` and `value'/1`, and satisfying the clues in `clue/2` and `clue'/2`.",
+        "The guessed Latin Squares are stored in `assign/2` and `assign'/2`, and when superimposed the ordered paired entries in the positions are all distinct."
+    ).
+    __apply_template__("@dumbo/Diagonal Latin Square").
+    __apply_template__("@dumbo/Diagonal Latin Square", (value, value'), (clue, clue'), (assign, assign')).
+    :- assign(C1, Value), assign'(C1, Value'), assign(C2, Value), assign'(C2, Value'), C1 < C2.
 __end__.

@@ -87,7 +87,7 @@ class Template:
 exact copy (arity {arity})
 output({terms}) :- input({terms}).
 __debug__("@dumbo/exact copy (arity {arity}): unexpected ", output({terms}), " without ", input({terms})) :- output({terms}), not input({terms}).
-            """, f"Copy `input/{arity}` in `output/{arity}`, and generates `__debug__` atoms if `output/{arity}` is altered outside the template.")
+            """, f"Copy `input/{arity}` into `output/{arity}`, and generates `__debug__` atoms if `output/{arity}` is altered outside the template.")
             if arity > 0:
                 register(f"""
 debug expected exactly one instance (arity {arity})
