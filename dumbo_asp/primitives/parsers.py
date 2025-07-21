@@ -18,6 +18,7 @@ class Parser:
         begin: int
         end: int
         message: str
+        llm_message: str
 
         key: InitVar[PrivateKey]
         __key = PrivateKey()
@@ -37,6 +38,7 @@ class Parser:
                 begin=begin,
                 end=end,
                 message=parts[3][len(" error: "):],
+                llm_message=Parser.Error.to_llm_str(int(parts[1]), begin, end, parsed_string, parts[3][len(" error: "):]),
                 key=Parser.Error.__key,
             )
 
@@ -61,6 +63,22 @@ class Parser:
                     res.append('>' * width + '| ' + ' ' * (self.begin - 1) + '^' * (self.end - self.begin + 1))
             res.append(f"error: {self.message}")
             return '\n'.join(res)
+
+        @staticmethod
+        def to_llm_str(line: int, begin: int, end: int, code: str, message: str) -> str:
+            """
+            Returns a string representation of the error formatted for a Large Language Model.
+            """
+            return (
+                f"There is a syntax error in the given Answer Set Programming (ASP) code.\n"
+                f"Error message: {message}\n"
+                f"Location: Line {line}, Columns {begin}-{end}\n"
+                f"Here is the line with the error:\n"
+                f"```\n"
+                f"{code}\n"
+                f"```\n"
+                f"Please fix the syntax error in this line."
+            )
 
     @staticmethod
     def parse_range(string: str) -> tuple[int, int]:
