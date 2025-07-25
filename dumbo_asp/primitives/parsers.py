@@ -68,14 +68,30 @@ class Parser:
         def to_llm_str(line: int, begin: int, end: int, code: str, message: str) -> str:
             """
             Returns a string representation of the error formatted for a Large Language Model.
+            Shows the error line with one line of context before and after, all with line numbers.
             """
+            lines = code.split('\n')
+            width = math.floor(math.log10(len(lines))) + 1
+            context_lines = []
+            
+            # Add previous line if it exists
+            if line > 1:
+                context_lines.append(f"{str(line-1).zfill(width)}| {lines[line-2]}")
+                
+            # Add error line
+            context_lines.append(f"{str(line).zfill(width)}| {lines[line-1]}")
+            
+            # Add next line if it exists
+            if line < len(lines):
+                context_lines.append(f"{str(line+1).zfill(width)}| {lines[line]}")
+            
             return (
                 f"There is a syntax error in the given Answer Set Programming (ASP) code.\n"
                 f"Error message: {message}\n"
                 f"Location: Line {line}, Columns {begin}-{end}\n"
-                f"Here is the line with the error:\n"
+                f"Here is the piece of code with the error:\n"
                 f"```\n"
-                f"{code}\n"
+                f"{'\n'.join(context_lines)}\n"
                 f"```\n"
                 f"Please fix the syntax error in this line."
             )
