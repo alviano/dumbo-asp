@@ -137,7 +137,7 @@ __debug__("Expecting some instance of ", predicate({arity}), ", found none") :- 
 
     @staticmethod
     def expand_program(program: SymbolicProgram, *, limit: int = 100_000, register_templates: bool = False,
-                       trace: bool = False) -> SymbolicProgram:
+                       trace: bool = False, return_templates: bool = False) -> SymbolicProgram | tuple[SymbolicProgram, dict[str, "Template"]]:
         Template.__init_core_templates()
         templates = {}
         template_under_read = None
@@ -220,7 +220,10 @@ __debug__("Expecting some instance of ", predicate({arity}), ", found none") :- 
                 else:
                     res.append(rule)
 
-        return SymbolicProgram.of(res)
+        expanded_program = SymbolicProgram.of(res)
+        if return_templates:
+            return expanded_program, templates
+        return expanded_program
 
     def __str__(self):
         return f"""__template__("{self.name}").\n{self.program}\n__end__."""

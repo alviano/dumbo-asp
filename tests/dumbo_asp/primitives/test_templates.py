@@ -138,6 +138,32 @@ __tc_ebc40a28_de77_494a_a139_000000000004(X,Z) :- __tc_ebc40a28_de77_494a_a139_0
         Model.of_program(program)
 
 
+def test_template_expand_program_returns_a_template():
+    source = """
+__template__("transitive_closure").
+closure(X,Y) :- link(X,Y).
+closure(X,Z) :- closure(X,Y), link(Y,Z).
+__end__.
+    """.strip()
+
+    program = SymbolicProgram.parse(source)
+    expanded, templates = Template.expand_program(program, return_templates=True)
+
+    assert "transitive_closure" in templates
+
+    tpl = templates["transitive_closure"]
+    assert tpl.name.value == "transitive_closure"
+
+    preds = [f"{p.name}/{p.arity}" for p in tpl.predicates()]
+    assert "closure/2" in preds
+    assert "link/2" in preds
+    assert templates.keys() == {"transitive_closure"}
+    assert str(tpl.program).strip() == """
+closure(X,Y) :- link(X,Y).
+closure(X,Z) :- closure(X,Y), link(Y,Z).
+    """.strip()
+
+
 def test_billion_laughs_attack():
     n = 4
     program = SymbolicProgram.parse(
