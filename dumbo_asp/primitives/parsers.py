@@ -75,11 +75,12 @@ class Parser:
             context_lines = []
             
             # Add previous line if it exists
-            if line > 1:
+            if line > 1 and line - 2 < len(lines):
                 context_lines.append(f"{str(line-1).zfill(width)}| {lines[line-2]}")
                 
             # Add error line
-            context_lines.append(f"{str(line).zfill(width)}| {lines[line-1]}")
+            if line > 0 and line - 1 < len(lines):
+                context_lines.append(f"{str(line).zfill(width)}| {lines[line-1]}")
             
             # Add next line if it exists
             if line < len(lines):
