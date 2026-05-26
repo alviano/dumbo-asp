@@ -103,6 +103,13 @@ def test_expand_zero_global_variables_with_local_variables():
     assert str(rules[0]) == ":- bar(3); bar(2); bar(1)."
 
 
+def test_expand_local_variables_in_conditional_literal_may_be_empty():
+    rule = SymbolicRule.parse(":- bar(X) : foo(X).")
+    rules = rule.expand_global_and_local_variables(herbrand_base=Model.empty())
+    assert len(rules) == 1
+    assert str(rules[0]) == ":- #true."
+
+
 def test_expand_global_variables_when_there_are_anonymous_variables():
     rule = SymbolicRule.parse("a(X) :- b(X,_).")
     rules = rule.expand_global_and_local_variables(herbrand_base=Model.of_program("b(1..3, 6..7)."))

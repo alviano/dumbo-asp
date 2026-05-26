@@ -481,7 +481,7 @@ class SymbolicRule:
         transformer.visit(self.__value)
         rule = self.__parsed_string or str(self.__value)
         for location, atoms in reversed(transformer.substitutions):
-            rule = utils.replace_in_parsed_string(rule, location, '; '.join(atoms))
+            rule = utils.replace_in_parsed_string(rule, location, '; '.join(atoms) if atoms else "#true")
         return SymbolicRule.parse(rule, disabled=self.disabled)
 
     def expand_global_safe_variables(
